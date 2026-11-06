@@ -34900,7 +34900,7 @@ Escape Timer: %*]]
 
 		v19 = lib:CreateWindow({
 			Title = "<b>LA</b>",
-			Footer = ("<b>Проект LA %* | FTAP</b>"):format("v1.5"),
+			Footer = ("<b>Проект LA %* | FTAP</b>"):format("v1.51"),
 			ToggleKeybind = Enum.KeyCode.RightShift,
 			Center = true,
 			AutoShow = true,
@@ -34996,7 +34996,7 @@ Escape Timer: %*]]
 				local floor = math.floor
 				local dataPing = Stats2.Network.ServerStatsItem["Data Ping"]
 				local getValue = dataPing.GetValue
-				setText(v23,("LA %s | %s fps | %s ping"):format("v1.5", math.floor(Stats2.Workspace.Heartbeat:GetValue()), floor(getValue(dataPing))))
+				setText(v23,("LA %s | %s fps | %s ping"):format("v1.51", math.floor(Stats2.Workspace.Heartbeat:GetValue()), floor(getValue(dataPing))))
 				task.wait(1)
 			end
 		end)
