@@ -17291,7 +17291,7 @@ ver
 							FreezeBlobman = false,
 							NetworkOwnerInKick = false,
 							DeleteShurInBlobK = true,
-							AntiGrab = false,
+							AntiGrab = true,
 							GucciAntiGrab = false,
 							AntiBurn = false,
 							AntiExplosion = false,
