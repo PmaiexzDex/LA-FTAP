@@ -165,7 +165,19 @@ do
 end
 
 
+local CleanFont = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium)
+local function ResolveFont(Value)
+    if typeof(Value) == "EnumItem" then
+        if Value == Enum.Font.Code then
+            return CleanFont
+        end
+        return Font.fromEnum(Value :: any)
+    end
+    return Value
+end
+
 local Library = {
+    ResolveFont = ResolveFont,
     LocalPlayer = LocalPlayer,
     IsRobloxFocused = true,
 
@@ -243,6 +255,7 @@ local Library = {
 
     NotifyOnError = false,
     ShowCustomCursor = true,
+    AnimatedBackground = true,
     ForceCheckbox = false,
 
     CantDragForced = false,
@@ -267,7 +280,7 @@ local Library = {
         AccentColor = Color3.fromRGB(125, 85, 255),
         OutlineColor = Color3.fromRGB(40, 40, 40),
         FontColor = Color3.new(1, 1, 1),
-        Font = Font.fromEnum(Enum.Font.Code),
+        Font = ResolveFont(Enum.Font.Code),
 
         RedColor = Color3.fromRGB(255, 50, 50),
         DestructiveColor = Color3.fromRGB(220, 38, 38),
@@ -2321,6 +2334,23 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
     local SmoothTarget
     local SmoothConn
 
+    -- the callback is expensive (re-measures text in every tab), so it is
+    -- throttled while dragging and runs once more at the end (Final = true)
+    local LastCallback = 0
+    local function Fire(Final: boolean)
+        if not Callback then
+            return
+        end
+
+        local Now = os.clock()
+        if not Final and Now - LastCallback < 0.1 then
+            return
+        end
+
+        LastCallback = Now
+        Library:SafeCallback(Callback, Final)
+    end
+
     local function StopSmooth()
         if SmoothConn then
             SmoothConn:Disconnect()
@@ -2347,9 +2377,7 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
             if not Dragging and math.abs(DX) < 0.4 and math.abs(DY) < 0.4 then
                 UI.Size = SmoothTarget
                 StopSmooth()
-                if Callback then
-                    Library:SafeCallback(Callback)
-                end
+                Fire(true)
                 return
             end
 
@@ -2360,9 +2388,7 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
                 SmoothTarget.Y.Scale,
                 Current.Y.Offset + DY * Alpha
             )
-            if Callback then
-                Library:SafeCallback(Callback)
-            end
+            Fire(false)
         end)
     end
 
@@ -2386,6 +2412,10 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
             if Changed and Changed.Connected then
                 Changed:Disconnect()
                 Changed = nil
+            end
+
+            if not SmoothConn then
+                Fire(true)
             end
         end)
     end)
@@ -2413,9 +2443,7 @@ function Library:MakeResizable(UI: GuiObject, DragFrame: GuiObject, Callback: ()
                 SmoothResize(TargetSize)
             else
                 UI.Size = TargetSize
-                if Callback then
-                    Library:SafeCallback(Callback)
-                end
+                Fire(false)
             end
         end
     end)
@@ -10362,9 +10390,7 @@ do
 end
 
 function Library:SetFont(FontFace)
-    if typeof(FontFace) == "EnumItem" then
-        FontFace = Font.fromEnum(FontFace :: any)
-    end
+    FontFace = ResolveFont(FontFace)
 
     Library.Scheme.Font = FontFace
     Library:UpdateColorsUsingRegistry()
@@ -10459,6 +10485,19 @@ function Library:Notify(...)
     end
     Data.Destroyed = false
 
+    local function Clean(Value)
+        local Text = tostring(Value):gsub("f([fil])", "f\u{200B}%1")
+        Text = Text:gsub("f([fil])", "f\u{200B}%1")
+        return Text
+    end
+
+    local EnterInfo = TweenInfo.new(0.75, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+    local ExitInfo = TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+    local SlideDistance = 70
+    local function SlideOffset()
+        return Library.NotifySide:lower() == "left" and -SlideDistance or SlideDistance
+    end
+
     local DeletedInstance = false
     local DeleteConnection = nil
     if typeof(Data.Time) == "Instance" then
@@ -10479,10 +10518,12 @@ function Library:Notify(...)
         Parent = NotificationArea,
     })
 
-    local Holder = New("Frame", {
+    local Holder = New("CanvasGroup", {
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundColor3 = "MainColor",
-        Position = Library.NotifySide:lower() == "left" and UDim2.new(-1, -8, 0, 0) or UDim2.new(1, 8, 0, 0),
+        BorderSizePixel = 0,
+        GroupTransparency = 1,
+        Position = UDim2.fromOffset(SlideOffset(), 0),
         Size = UDim2.new(1, 0, 0, 0),
         ZIndex = 5,
         Parent = FakeBackground,
@@ -10495,6 +10536,35 @@ function Library:Notify(...)
         })
     )
     Library:AddOutline(Holder)
+
+    -- ===== Notification animation decorations =====
+    -- glowing accent outline that flashes on arrival and then settles
+    local GlowStroke = New("UIStroke", {
+        Color = "AccentColor",
+        Thickness = 1.5,
+        Transparency = 0,
+        Parent = Holder,
+    })
+
+    -- light shimmer that sweeps across once on arrival
+    local Shimmer = New("Frame", {
+        Active = false,
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 0.8,
+        BorderSizePixel = 0,
+        Position = UDim2.fromScale(-0.5, 0),
+        Size = UDim2.fromScale(0.4, 1),
+        ZIndex = 7,
+        Parent = Holder,
+    })
+    New("UIGradient", {
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 1),
+            NumberSequenceKeypoint.new(0.5, 0),
+            NumberSequenceKeypoint.new(1, 1),
+        }),
+        Parent = Shimmer,
+    })
 
     local ContentHolder = New("Frame", {
         AutomaticSize = Enum.AutomaticSize.Y,
@@ -10617,6 +10687,7 @@ function Library:Notify(...)
     local DescX = 0
 
     local TimerFill
+    local TimerShine
 
     if Data.Title then
         Title = New("TextLabel", {
@@ -10625,7 +10696,8 @@ function Library:Notify(...)
             AnchorPoint = Vector2.new(0, 0.5),
             Position = UDim2.new(0, (IconLabel and 21 or 0), 0.5, 0),
             Size = UDim2.fromScale(0, 0),
-            Text = Data.Title,
+            FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.SemiBold),
+            Text = Clean(Data.Title),
             TextColor3 = Data.TitleColor or "FontColor",
             TextSize = 15,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -10640,7 +10712,8 @@ function Library:Notify(...)
             AutomaticSize = Enum.AutomaticSize.None,
             BackgroundTransparency = 1,
             Size = UDim2.fromScale(0, 0),
-            Text = Data.Description,
+            FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium),
+            Text = Clean(Data.Description),
             TextColor3 = Data.DescriptionColor or "FontColor",
             TextSize = 14,
             TextXAlignment = Enum.TextXAlignment.Left,
@@ -10698,7 +10771,7 @@ function Library:Notify(...)
     function Data:ChangeTitle(Text)
         if Title then
             Data.Title = tostring(Text)
-            Title.Text = Data.Title
+            Title.Text = Clean(Data.Title)
             Data:Resize()
         end
     end
@@ -10706,7 +10779,7 @@ function Library:Notify(...)
     function Data:ChangeDescription(Text)
         if Desc then
             Data.Description = tostring(Text)
-            Desc.Text = Data.Description
+            Desc.Text = Clean(Data.Description)
             Data:Resize()
         end
     end
@@ -10747,13 +10820,19 @@ function Library:Notify(...)
 
         Library:UpdateNotificationPositions()
 
+        if TimerShine then
+            TimerShine:Cancel()
+            TimerShine = nil
+        end
+
         TweenService
-            :Create(Holder, Library.NotifyTweenInfo, {
-                Position = Library.NotifySide:lower() == "left" and UDim2.new(-1, -8, 0, -2) or UDim2.new(1, 8, 0, -2),
+            :Create(Holder, ExitInfo, {
+                Position = UDim2.fromOffset(SlideOffset() * 0.6, 0),
+                GroupTransparency = 1,
             })
             :Play()
 
-        task.delay(Library.NotifyTweenInfo.Time, function()
+        task.delay(ExitInfo.Time, function()
             Library.Notifications[FakeBackground] = nil
             FakeBackground:Destroy()
         end)
@@ -10766,22 +10845,58 @@ function Library:Notify(...)
         Parent = ContentHolder,
     })
     local TimerBar = New("Frame", {
-        BackgroundColor3 = "BackgroundColor",
-        BorderColor3 = "OutlineColor",
-        BorderSizePixel = 1,
-        Position = UDim2.fromOffset(0, 3),
-        Size = UDim2.new(1, 0, 0, 2),
+        BackgroundColor3 = "OutlineColor",
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(0, 2),
+        Size = UDim2.new(1, 0, 0, 3),
         Parent = TimerHolder,
+    })
+    New("UICorner", {
+        CornerRadius = UDim.new(1, 0),
+        Parent = TimerBar,
     })
     TimerFill = New("Frame", {
         BackgroundColor3 = "AccentColor",
+        BorderSizePixel = 0,
         Size = UDim2.fromScale(1, 1),
         Parent = TimerBar,
+    })
+    New("UICorner", {
+        CornerRadius = UDim.new(1, 0),
+        Parent = TimerFill,
     })
 
     if typeof(Data.Time) == "Instance" then
         TimerFill.Size = UDim2.fromScale(0, 1)
     end
+
+    do
+        TimerFill.ClipsDescendants = true
+        local Shine = New("Frame", {
+            Active = false,
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BackgroundTransparency = 0.45,
+            BorderSizePixel = 0,
+            Position = UDim2.fromScale(-0.6, 0),
+            Size = UDim2.fromScale(0.6, 1),
+            Parent = TimerFill,
+        })
+        New("UIGradient", {
+            Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(0.5, 0),
+                NumberSequenceKeypoint.new(1, 1),
+            }),
+            Parent = Shine,
+        })
+        TimerShine = TweenService:Create(
+            Shine,
+            TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1),
+            { Position = UDim2.fromScale(1, 0) }
+        )
+        TimerShine:Play()
+    end
+
     if Data.SoundId then
         local SoundId = Data.SoundId
         if typeof(SoundId) == "number" then
@@ -10804,9 +10919,26 @@ function Library:Notify(...)
     Data:Resize()
 
     FakeBackground.Visible = true
-    TweenService:Create(Holder, Library.NotifyTweenInfo, {
+    TweenService:Create(Holder, EnterInfo, {
         Position = UDim2.fromOffset(0, 0),
+        GroupTransparency = 0,
     }):Play()
+
+    TweenService:Create(
+        GlowStroke,
+        TweenInfo.new(1.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        { Transparency = 0.8 }
+    ):Play()
+    TweenService:Create(
+        Shimmer,
+        TweenInfo.new(1.3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, 0, false, 0.3),
+        { Position = UDim2.fromScale(1.2, 0) }
+    ):Play()
+    task.delay(1.8, function()
+        if Shimmer then
+            Shimmer:Destroy()
+        end
+    end)
 
     task.defer(function()
         if not Data.Destroyed then
@@ -10814,7 +10946,7 @@ function Library:Notify(...)
         end
     end)
 
-    task.delay(Library.NotifyTweenInfo.Time, function()
+    task.delay(EnterInfo.Time, function()
         if Data.Persist then
             return
         elseif typeof(Data.Time) == "Instance" then
@@ -10857,9 +10989,7 @@ function Library:CreateWindow(WindowInfo)
         math.clamp(WindowInfo.Size.X.Offset, Library.MinSize.X, MaxX),
         math.clamp(WindowInfo.Size.Y.Offset, Library.MinSize.Y, MaxY)
     )
-    if typeof(WindowInfo.Font) == "EnumItem" then
-        WindowInfo.Font = Font.fromEnum(WindowInfo.Font :: any)
-    end
+    WindowInfo.Font = ResolveFont(WindowInfo.Font)
     WindowInfo.CornerRadius = math.min(WindowInfo.CornerRadius, 100)
 
     local TabButtonsStyle = WindowInfo.TabButtonsStyle
@@ -11253,6 +11383,7 @@ function Library:CreateWindow(WindowInfo)
         -- footer text erases itself, pauses, then types back in (loops)
         do
             local Phase, PhaseStart = "hold", os.clock()
+            local CachedText, Length = nil, 0
             local function Ease(T)
                 return T < 0.5 and 2 * T * T or 1 - ((-2 * T + 2) ^ 2) / 2
             end
@@ -11273,8 +11404,12 @@ function Library:CreateWindow(WindowInfo)
                     return
                 end
 
-                local Plain = string.gsub(FooterLabel.Text, "<[^>]+>", "")
-                local Length = utf8.len(Plain) or #Plain
+                local CurrentText = FooterLabel.Text
+                if CurrentText ~= CachedText then
+                    CachedText = CurrentText
+                    local Plain = string.gsub(CurrentText, "<[^>]+>", "")
+                    Length = utf8.len(Plain) or #Plain
+                end
                 if Length <= 0 then
                     return
                 end
@@ -11322,9 +11457,13 @@ function Library:CreateWindow(WindowInfo)
                 Parent = BottomBar,
             })
 
-            Library:MakeResizable(MainFrame, ResizeButton, function()
-                for _, Tab in Library.Tabs do
-                    Tab:Resize(true)
+            Library:MakeResizable(MainFrame, ResizeButton, function(Final)
+                if Final then
+                    for _, Tab in Library.Tabs do
+                        Tab:Resize(true)
+                    end
+                elseif Library.ActiveTab then
+                    Library.ActiveTab:Resize(true)
                 end
             end)
         end
@@ -11521,6 +11660,386 @@ function Library:CreateWindow(WindowInfo)
         })
 
         Library.WindowContainer = Container
+
+        -- ===== Twinkling starfield + sparkle effects for the UI =====
+        -- Content area + sidebar get a starfield BEHIND everything (ZIndex 0),
+        -- the window border shimmers and a soft light glint sweeps across the UI.
+        do
+            local function BuildStarfield(Parent, Cfg)
+                local Field = {}
+                local Rng = Random.new(Cfg.Seed)
+
+                local function MakeNebula(Transparency)
+                    local Cloud = New("Frame", {
+                        Active = false,
+                        BackgroundColor3 = Color3.new(1, 1, 1),
+                        BackgroundTransparency = Transparency,
+                        BorderSizePixel = 0,
+                        Size = UDim2.fromScale(1, 1),
+                        ZIndex = 0,
+                        Parent = Parent,
+                    })
+                    return New("UIGradient", {
+                        Transparency = NumberSequence.new({
+                            NumberSequenceKeypoint.new(0, 0.7),
+                            NumberSequenceKeypoint.new(0.5, 0),
+                            NumberSequenceKeypoint.new(1, 0.7),
+                        }),
+                        Parent = Cloud,
+                    })
+                end
+                local NebulaA = MakeNebula(0.88)
+                local NebulaB = MakeNebula(0.92)
+
+                local function MakeRay(StarParent, Rotation, Vertical)
+                    local Line = New("Frame", {
+                        Active = false,
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        BackgroundColor3 = Color3.new(1, 1, 1),
+                        BorderSizePixel = 0,
+                        Position = UDim2.fromScale(0.5, 0.5),
+                        Size = UDim2.fromOffset(1, 1),
+                        Rotation = Rotation,
+                        ZIndex = 0,
+                        Parent = StarParent,
+                    })
+                    New("UIGradient", {
+                        Transparency = NumberSequence.new({
+                            NumberSequenceKeypoint.new(0, 1),
+                            NumberSequenceKeypoint.new(0.5, 0),
+                            NumberSequenceKeypoint.new(1, 1),
+                        }),
+                        Rotation = Vertical and 90 or 0,
+                        Parent = Line,
+                    })
+                    return Line
+                end
+
+                local Stars = {}
+                for Index = 1, Cfg.Stars do
+                    local Kind = Index <= Cfg.Big and "Big" or (Index <= Cfg.Mid and "Mid" or "Tiny")
+                    local Size = Kind == "Big" and 3 or (Kind == "Mid" and 2 or Rng:NextInteger(1, 2))
+
+                    local Star = New("Frame", {
+                        Active = false,
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        BackgroundColor3 = Color3.new(1, 1, 1),
+                        BorderSizePixel = 0,
+                        Size = UDim2.fromOffset(Size, Size),
+                        ZIndex = 0,
+                        Parent = Parent,
+                    })
+                    New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = Star })
+
+                    local Entry = {
+                        Star = Star,
+                        Kind = Kind,
+                        BaseSize = Size,
+                        X = Rng:NextNumber(),
+                        Y = Rng:NextNumber(),
+                        Drift = Kind == "Big" and Rng:NextNumber(0.008, 0.014) or Rng:NextNumber(0.002, 0.008),
+                        Bob = Rng:NextNumber(0.004, 0.012),
+                        Speed = Kind == "Big" and Rng:NextNumber(1.4, 2.8) or Rng:NextNumber(0.9, 4.2),
+                        Phase = Rng:NextNumber(0, math.pi * 2),
+                        Sharp = Rng:NextInteger(2, 5),
+                        Min = Kind == "Big" and 0.18 or Rng:NextNumber(0.08, 0.35),
+                        Spin = Rng:NextNumber(-14, 14),
+                        Len = Rng:NextNumber(14, 22),
+                    }
+
+                    if Kind == "Big" then
+                        Entry.Rays = {
+                            MakeRay(Star, 0, false),
+                            MakeRay(Star, 0, true),
+                            MakeRay(Star, 45, false),
+                            MakeRay(Star, -45, false),
+                        }
+                    end
+                    if Kind ~= "Tiny" then
+                        local Glow = New("Frame", {
+                            Active = false,
+                            AnchorPoint = Vector2.new(0.5, 0.5),
+                            BackgroundColor3 = Color3.new(1, 1, 1),
+                            BackgroundTransparency = 0.9,
+                            BorderSizePixel = 0,
+                            Position = UDim2.fromScale(0.5, 0.5),
+                            Size = UDim2.fromOffset(10, 10),
+                            ZIndex = 0,
+                            Parent = Star,
+                        })
+                        New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = Glow })
+                        Entry.Glow = Glow
+                    end
+                    Stars[Index] = Entry
+                end
+
+                local Meteors = {}
+                for Index = 1, Cfg.Meteors do
+                    local Trail = New("Frame", {
+                        Active = false,
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        BackgroundColor3 = Color3.new(1, 1, 1),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        Rotation = 28,
+                        Size = UDim2.fromOffset(110, 2),
+                        ZIndex = 0,
+                        Parent = Parent,
+                    })
+                    New("UIGradient", {
+                        Transparency = NumberSequence.new({
+                            NumberSequenceKeypoint.new(0, 1),
+                            NumberSequenceKeypoint.new(1, 0),
+                        }),
+                        Parent = Trail,
+                    })
+                    Meteors[Index] = {
+                        Trail = Trail,
+                        NextAt = os.clock() + Rng:NextNumber(1.5, 4) + Index * 2,
+                        StartAt = 0, Duration = 1, SX = 0, SY = 0, Active = false,
+                    }
+                end
+
+                local DirX, DirY = math.cos(math.rad(28)), math.sin(math.rad(28))
+
+                function Field.Update(Now, Time, Accent, Width, Height)
+                    -- colours only change with the theme, so rebuild them only then
+                    local AccentChanged = Accent ~= Field.LastAccent
+                    if AccentChanged then
+                        Field.LastAccent = Accent
+                        Field.Tint = Color3.new(1, 1, 1):Lerp(Accent, 0.2)
+                        local Deep1 = Color3.fromRGB(70, 60, 170):Lerp(Accent, 0.45)
+                        local Deep2 = Color3.fromRGB(30, 110, 190):Lerp(Accent, 0.45)
+                        NebulaA.Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Deep2),
+                            ColorSequenceKeypoint.new(0.5, Deep1),
+                            ColorSequenceKeypoint.new(1, Deep2),
+                        })
+                        NebulaB.Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Deep1),
+                            ColorSequenceKeypoint.new(0.5, Deep2),
+                            ColorSequenceKeypoint.new(1, Deep1),
+                        })
+                    end
+                    NebulaA.Rotation = 30 + math.sin(Time * 0.2) * 30
+                    NebulaA.Offset = Vector2.new(math.sin(Time * 0.23) * 0.3, math.cos(Time * 0.17) * 0.25)
+                    NebulaB.Rotation = 150 - math.sin(Time * 0.15) * 35
+                    NebulaB.Offset = Vector2.new(math.cos(Time * 0.19) * 0.3, math.sin(Time * 0.21) * 0.25)
+
+                    local Tint = Field.Tint
+                    for _, Entry in ipairs(Stars) do
+                        local Star = Entry.Star
+
+                        -- drift + bob (every frame, so motion stays perfectly smooth)
+                        local X = (Entry.X - Time * Entry.Drift) % 1
+                        local Y = Entry.Y + math.sin(Time * 0.4 + Entry.Phase) * Entry.Bob
+                        Star.Position = UDim2.fromScale(X, Y)
+                        if Entry.Rays then
+                            Star.Rotation = (Time * Entry.Spin) % 360
+                        end
+
+                        -- twinkle: a star is dark most of the time and flashes briefly;
+                        -- while it is resting there is nothing to update
+                        local Pulse = math.max(math.sin(Time * Entry.Speed + Entry.Phase), 0) ^ Entry.Sharp
+                        if Pulse > 0.002 or not Entry.Idle or AccentChanged then
+                            Entry.Idle = Pulse <= 0.002
+                            local Bright = Entry.Min + (1 - Entry.Min) * Pulse
+                            Star.BackgroundColor3 = Tint
+                            Star.BackgroundTransparency = 1 - Bright
+
+                            if Entry.Kind ~= "Tiny" then
+                                local S = Entry.BaseSize * (0.75 + 0.9 * Pulse)
+                                Star.Size = UDim2.fromOffset(S, S)
+                                local GlowSize = 6 + (Entry.Kind == "Big" and 16 or 8) * Pulse
+                                Entry.Glow.Size = UDim2.fromOffset(GlowSize, GlowSize)
+                                Entry.Glow.BackgroundColor3 = Tint
+                                Entry.Glow.BackgroundTransparency = 0.93 - 0.35 * Pulse
+                            end
+
+                            if Entry.Rays then
+                                local Long = Entry.Len * (0.2 + 0.8 * Pulse)
+                                local Short = Long * 0.55
+                                local RayTransparency = 0.9 - 0.9 * Pulse
+                                Entry.Rays[1].Size = UDim2.fromOffset(Long, 1)
+                                Entry.Rays[2].Size = UDim2.fromOffset(1, Long)
+                                Entry.Rays[3].Size = UDim2.fromOffset(Short, 1)
+                                Entry.Rays[4].Size = UDim2.fromOffset(Short, 1)
+                                for _, Ray in ipairs(Entry.Rays) do
+                                    Ray.BackgroundColor3 = Tint
+                                    Ray.BackgroundTransparency = RayTransparency
+                                end
+                            end
+                        end
+                    end
+
+                    for _, Meteor in ipairs(Meteors) do
+                        if Meteor.Active then
+                            local Progress = (Now - Meteor.StartAt) / Meteor.Duration
+                            if Progress >= 1 then
+                                Meteor.Active = false
+                                Meteor.Trail.BackgroundTransparency = 1
+                                Meteor.NextAt = Now + Rng:NextNumber(3, 7)
+                            else
+                                local Travel = Width * 0.55 * Progress
+                                Meteor.Trail.Position = UDim2.fromOffset(Meteor.SX + DirX * Travel, Meteor.SY + DirY * Travel)
+                                local Fade = math.min(Progress / 0.15, (1 - Progress) / 0.4, 1)
+                                Meteor.Trail.BackgroundTransparency = 1 - 0.95 * Fade
+                            end
+                        elseif Now >= Meteor.NextAt and Width > 0 then
+                            Meteor.Active = true
+                            Meteor.StartAt = Now
+                            Meteor.Duration = Rng:NextNumber(0.9, 1.4)
+                            Meteor.SX = Rng:NextNumber(0.05, 0.6) * Width
+                            Meteor.SY = Rng:NextNumber(0.0, 0.35) * Height
+                        end
+                    end
+                end
+
+                return Field
+            end
+
+            -- starfield behind the tab content
+            local ContentBG = New("Frame", {
+                Name = "AnimatedBackground",
+                Active = false,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Position = UDim2.new(0, -6, 0, 0), -- cancel Container's 6px side padding
+                Size = UDim2.new(1, 12, 1, 0),
+                ZIndex = 0,
+                Visible = false,
+                Parent = Container,
+            })
+            local ContentFX = BuildStarfield(ContentBG, { Seed = 2026, Stars = 80, Big = 10, Mid = 32, Meteors = 2 })
+
+            -- starfield behind the sidebar (tab buttons)
+            local SideBG = New("Frame", {
+                Name = "AnimatedSidebar",
+                Active = false,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Position = UDim2.fromOffset(0, 49),
+                Size = UDim2.new(0, InitialLeftWidth, 1, -70),
+                ZIndex = 0,
+                Visible = false,
+                Parent = MainFrame,
+            })
+            local SideFX = BuildStarfield(SideBG, { Seed = 77, Stars = 34, Big = 4, Mid = 14, Meteors = 0 })
+
+            -- shimmering window border (rotating light running around the outline)
+            local BorderStroke = New("UIStroke", {
+                Color = Color3.new(1, 1, 1),
+                Thickness = 1.5,
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+                Parent = MainFrame,
+            })
+            local BorderGradient = New("UIGradient", {
+                Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0.85),
+                    NumberSequenceKeypoint.new(0.2, 0.05),
+                    NumberSequenceKeypoint.new(0.4, 0.85),
+                    NumberSequenceKeypoint.new(0.7, 0.85),
+                    NumberSequenceKeypoint.new(0.85, 0.05),
+                    NumberSequenceKeypoint.new(1, 0.85),
+                }),
+                Parent = BorderStroke,
+            })
+
+            -- soft glint that sweeps across the whole UI every few seconds
+            local Sheen = New("Frame", {
+                Name = "Sheen",
+                Active = false,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 50,
+                Parent = MainFrame,
+            })
+            table.insert(
+                Library.Corners,
+                New("UICorner", {
+                    CornerRadius = UDim.new(0.05, WindowInfo.CornerRadius),
+                    Parent = Sheen,
+                })
+            )
+            local Band = New("Frame", {
+                Active = false,
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = Color3.new(1, 1, 1),
+                BorderSizePixel = 0,
+                Rotation = 20,
+                Size = UDim2.new(0, 90, 2, 0),
+                Position = UDim2.fromScale(-0.3, 0.5),
+                ZIndex = 50,
+                Parent = Sheen,
+            })
+            New("UIGradient", {
+                Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 1),
+                    NumberSequenceKeypoint.new(0.5, 0.9),
+                    NumberSequenceKeypoint.new(1, 1),
+                }),
+                Parent = Band,
+            })
+
+            local StartTime = os.clock()
+            local LastBorderAccent
+            local SheenPeriod = 7
+
+            Library:GiveSignal(RunService.RenderStepped:Connect(function()
+                if not (ContentBG and MainFrame) then
+                    return
+                end
+
+                local ShouldShow = Library.AnimatedBackground ~= false and MainFrame.Visible
+                ContentBG.Visible = ShouldShow
+                SideBG.Visible = ShouldShow
+                Sheen.Visible = ShouldShow
+                BorderStroke.Enabled = ShouldShow
+                if not ShouldShow then
+                    return
+                end
+
+                local Now = os.clock()
+                local Time = Now - StartTime
+                local Accent = Library.Scheme.AccentColor
+                local DPI = Library.DPIScale
+
+                -- sidebar width follows the (resizable / compactable) container
+                local SideWidth = math.max(0, (MainFrame.AbsoluteSize.X - Container.AbsoluteSize.X) / DPI)
+                SideBG.Size = UDim2.new(0, SideWidth, 1, -70)
+
+                local CW, CH = ContentBG.AbsoluteSize.X / DPI, ContentBG.AbsoluteSize.Y / DPI
+                ContentFX.Update(Now, Time, Accent, CW, CH)
+                SideFX.Update(Now, Time, Accent, SideBG.AbsoluteSize.X / DPI, SideBG.AbsoluteSize.Y / DPI)
+
+                -- border shimmer
+                if Accent ~= LastBorderAccent then
+                    LastBorderAccent = Accent
+                    BorderGradient.Color = ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, Accent),
+                        ColorSequenceKeypoint.new(0.2, Color3.new(1, 1, 1)),
+                        ColorSequenceKeypoint.new(0.5, Accent),
+                        ColorSequenceKeypoint.new(0.85, Color3.new(1, 1, 1)),
+                        ColorSequenceKeypoint.new(1, Accent),
+                    })
+                end
+                BorderGradient.Rotation = (Time * 80) % 360
+                BorderStroke.Transparency = 0.2 + 0.25 * (0.5 + 0.5 * math.sin(Time * 3))
+
+                -- glint sweep: runs across the UI, then rests until the next pass
+                local Phase = (Time % SheenPeriod) / 1.6
+                if Phase <= 1 then
+                    Band.Visible = true
+                    Band.Position = UDim2.fromScale(-0.2 + 1.4 * Phase, 0.5)
+                elseif Band.Visible then
+                    Band.Visible = false
+                end
+            end))
+        end
     end
 
     local Window = {}
@@ -11596,6 +12115,10 @@ function Library:CreateWindow(WindowInfo)
 
         HasBackgroundImage = ValidIcon
         WindowInfo.BackgroundImage = Image
+    end
+
+    function Window:SetAnimatedBackground(Enabled: boolean)
+        Library.AnimatedBackground = Enabled ~= false
     end
 
     function Window:SetFooter(Footer: string)
@@ -15779,15 +16302,15 @@ function ThemeManager:SetDefaultTheme(Theme: any)
     local FontFaceType = typeof(FontFace)
     
     if FontFaceType == "EnumItem" then
-        LibraryScheme.Font = Font.fromEnum(FontFace)
+        LibraryScheme.Font = Library.ResolveFont(FontFace)
         FinalTheme.FontFace = FontFace.Name
 
     elseif FontFaceType == "string" then
-        LibraryScheme.Font = Font.fromEnum(Enum.Font[FontFace] :: Enum.Font)
+        LibraryScheme.Font = Library.ResolveFont(Enum.Font[FontFace] :: Enum.Font)
         FinalTheme.FontFace = FontFace
     
     else
-        LibraryScheme.Font = Font.fromEnum(Enum.Font.Code)
+        LibraryScheme.Font = Library.ResolveFont(Enum.Font.Code)
         FinalTheme.FontFace = "Code"
     end
 
@@ -35434,15 +35957,15 @@ end)
 		do
 			local smooth = Enum.EasingStyle.Quint
 			local out = Enum.EasingDirection.Out
-			lib.TweenInfo = TweenInfo.new(0.18, smooth, out)
-			lib.TabTransitionInfo = TweenInfo.new(0.32, smooth, out)
-			lib.TabSwipeOffset = 22
-			lib.WindowAnimationInfo = TweenInfo.new(0.32, smooth, out)
-			lib.DropdownTransitionInfo = TweenInfo.new(0.22, smooth, out)
-			lib.KeyPickerTransitionInfo = TweenInfo.new(0.2, smooth, out)
-			lib.GroupboxTweenInfo = TweenInfo.new(0.28, smooth, out)
-			lib.RotatingChevronTweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Back, out)
-			lib.NotifyTweenInfo = TweenInfo.new(0.35, smooth, out)
+			lib.TweenInfo = TweenInfo.new(0.24, smooth, out)
+			lib.TabTransitionInfo = TweenInfo.new(0.5, smooth, out)
+			lib.TabSwipeOffset = 28
+			lib.WindowAnimationInfo = TweenInfo.new(0.5, smooth, out)
+			lib.DropdownTransitionInfo = TweenInfo.new(0.34, smooth, out)
+			lib.KeyPickerTransitionInfo = TweenInfo.new(0.3, smooth, out)
+			lib.GroupboxTweenInfo = TweenInfo.new(0.45, smooth, out)
+			lib.RotatingChevronTweenInfo = TweenInfo.new(0.5, smooth, out)
+			lib.NotifyTweenInfo = TweenInfo.new(0.6, smooth, out)
 		end
 
 		do
