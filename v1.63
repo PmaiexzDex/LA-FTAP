@@ -21415,100 +21415,126 @@ end
 					return v24
 				end
 
-				tbl12.SetSilentAim = function(arg)
-					local silentAimState = tbl7.SilentAimState
-					arg = arg and not flag11
+				tbl12.SetSilentAim = function(enabled)
+                    local silentAimState = tbl7.SilentAimState
+                    enabled = enabled and not flag11
 
-					if arg then
-						silentAimState.Failed = nil
-					end
+                    if enabled then
+                        silentAimState.Failed = nil
+                    end
 
-					silentAimState.Hit = nil
-					silentAimState.HitTime = nil
-					tbl12.SetRuntimeToggle("SilentAim", arg)
+                    silentAimState.Hit = nil
+                    silentAimState.HitTime = nil
+                    tbl12.SetRuntimeToggle("SilentAim", enabled)
 
-					tbl12.SetRuntimeConnection("SilentAimStatus", RunService.Heartbeat, not flag11, function()
-						if silentAimState.Dirty then
-							silentAimState.Dirty = nil
-							tbl12.RefreshSilentAim()
-						end
-					end)
+                    -- ระบบจัดการ Status ผ่าน Heartbeat
+                    tbl12.SetRuntimeConnection("SilentAimStatus", RunService.Heartbeat, not flag11, function()
+                        if silentAimState.Dirty then
+                            silentAimState.Dirty = nil
+                            tbl12.RefreshSilentAim()
+                        end
+                    end)
 
-					if flag11 then
-						local patch = silentAimState.Patch
+                    if flag11 then
+                        -- [Unhook] คืนค่าฟังก์ชันดั้งเดิมเมื่อปิดสคริปต์
+                        local patch = silentAimState.Patch
+                        if patch and getrawmetatable then
+                            local ok, mt = pcall(getrawmetatable, game)
+                            if ok and mt.__namecall == patch.Wrapper then
+                                pcall(hookmetamethod, game, "__namecall", patch.Original)
+                            end
+                        end
+                        silentAimState.Patch = nil
+                        silentAimState.Dirty = nil
+                        silentAimState.Failed = nil
 
-						if patch and getrawmetatable then
-							local ok, result = pcall(getrawmetatable, game)
+                    elseif not silentAimState.Patch and type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" then
+                        -- [Peak-Level Hook] เริ่มทำการ Hook
+                        local patch = {}
+                        
+                        -- 1. ดึงฟังก์ชัน Raycast ดั้งเดิมเก็บไว้ (เพื่อป้องกันการเรียกซ้ำซ้อนและเพิ่มความเร็ว)
+                        local rawRaycast = workspace.Raycast 
 
-							if ok and result.__namecall == patch.Wrapper then
-								pcall(hookmetamethod, game, "__namecall", patch.Original)
-							end
-						end
+                        local function wrapper(self, ...)
+                            local args = table.pack(...)
+                            
+                            -- 2. Early Exit: ถ้าไม่ใช่การเรียก Raycast หรือปิด SilentAim อยู่ ให้คืนค่าปกติทันที (Performance Boost)
+                            if flag11 or not tbl8.SilentAim or not silentAimState.RaycastActive or self ~= workspace or getnamecallmethod() ~= "Raycast" then
+                                return patch.Original(self, ...)
+                            end
 
-						silentAimState.Patch = nil
-						silentAimState.Dirty = nil
-						silentAimState.Failed = nil
-					elseif not silentAimState.Patch and type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" then
-						local patch = {}
+                            -- 3. ถ้าเป็นการเรียกจากสคริปต์ของเราเอง (เช่น ในฟังก์ชัน GetSilentAimHit) ให้ข้ามไป
+                            if checkcaller and checkcaller() then
+                                return patch.Original(self, ...)
+                            end
 
-						local function wrapper(arg2, ...)
-							local v24 = table.pack(...)
-							if flag11 or not tbl8.SilentAim or not silentAimState.RaycastActive or arg2 ~= workspace or getnamecallmethod() ~= "Raycast" or checkcaller and checkcaller() then
-								return patch.Original(arg2, ...)
-							end
-							local v25 = ...
-							local value = select(2, ...)
-							local value2 = select(3, ...)
-							local currentCamera2 = workspace.CurrentCamera
-							if not currentCamera2 or typeof(v25) ~= "Vector3" or typeof(value) ~= "Vector3" or value.Magnitude <= 0 or (v25 - currentCamera2.CFrame.Position).Magnitude >= 0.1 or value.Unit:Dot(currentCamera2.CFrame.LookVector) <= 0.999 then
-								return patch.Original(arg2, table.unpack(v24, 1, v24.n))
-							end
-							local ok, result = pcall(getcallingscript)
-							if ok and result and result.Name ~= "GrabbingScript" and result.Name ~= "RaycastModule" then
-								return patch.Original(arg2, table.unpack(v24, 1, v24.n))
-							end
-							local ok2, hit = pcall(tbl12.GetSilentAimHit, value.Magnitude, value2, v25)
+                            local origin = args[1]
+                            local direction = args[2]
+                            local params = args[3]
 
-							if ok2 and hit then
-								local v26 = silentAimState
-								local v27 = silentAimState
-								local now3 = os.clock()
-								v26.Hit = hit
-								v27.HitTime = now3
-								return hit
-							end
+                            -- 4. ตรวจสอบความถูกต้องของข้อมูล (กันเกมแครช)
+                            if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" or direction.Magnitude <= 0 then
+                                return patch.Original(self, ...)
+                            end
 
-							if not ok2 then
-								silentAimState.Failed = true
-								silentAimState.RaycastActive = false
-								silentAimState.Dirty = true
-							end
+                            local currentCamera = workspace.CurrentCamera
+                            if not currentCamera then return patch.Original(self, ...) end
 
-							local v26 = workspace.Raycast(arg2, table.unpack(v24, 1, v24.n))
-							local v27 = silentAimState
-							local v28 = silentAimState
-							local now3 = os.clock()
-							v27.Hit = v26
-							v28.HitTime = now3
-							return v26
-						end
+                            -- 5. เช็คว่าทิศทางที่ยิงมา ใกล้เคียงกับที่กล้องมองอยู่หรือไม่ (เฉพาะกรณีที่เกมยิงจากกล้อง)
+                            -- ปรับระยะห่างเป็น 0.1 ตามโค้ดเดิม แต่ใช้ Dot Product แบบเวกเตอร์ปกติ
+                            if (origin - currentCamera.CFrame.Position).Magnitude >= 0.1 
+                            or direction.Unit:Dot(currentCamera.CFrame.LookVector) <= 0.999 then
+                                return patch.Original(self, ...)
+                            end
 
-						if newcclosure then
-							wrapper = newcclosure(wrapper)
-						end
+                            -- 6. ตรวจสอบว่าสคริปต์ที่เรียกคือ GrabbingScript หรือ RaycastModule จริงๆ หรือไม่ (Safety Check)
+                            local callingScript = nil
+                            pcall(function() callingScript = getcallingscript() end)
+                            if callingScript and callingScript.Name ~= "GrabbingScript" and callingScript.Name ~= "RaycastModule" then
+                                return patch.Original(self, ...)
+                            end
 
-						patch.Wrapper = wrapper
-						local ok, original = pcall(hookmetamethod, game, "__namecall", patch.Wrapper)
+                            -- 7. ค้นหาเป้าหมาย (ใช้ฟังก์ชัน GetSilentAimHit ที่มีอยู่แล้ว)
+                            local ok, hit = pcall(tbl12.GetSilentAimHit, direction.Magnitude, params, origin)
 
-						if ok and type(original) == "function" then
-							patch.Original = original
-							silentAimState.Patch = patch
-						end
-					end
+                            if ok and hit then
+                                -- เจอเป้าหมาย! ทำการ Spoof ค่า Hit กลับไปให้เกม
+                                silentAimState.Hit = hit
+                                silentAimState.HitTime = os.clock()
+                                return hit -- คืนค่า RaycastResult ปลอมให้เกม
+                            end
 
-					silentAimState.RaycastActive = not flag11 and silentAimState.Patch ~= nil and not silentAimState.Failed
-					tbl12.RefreshSilentAim()
-				end
+                            -- 8. ถ้าฟังก์ชัน GetSilentAimHit พัง ให้ปิดระบบชั่วคราวและคืนค่าปกติ
+                            if not ok then
+                                silentAimState.Failed = true
+                                silentAimState.RaycastActive = false
+                                silentAimState.Dirty = true
+                            end
+
+                            -- 9. ไม่เจอเป้าหมาย ให้ยิงแบบปกติ
+                            local realHit = workspace.Raycast(self, ...) -- ใช้เมธอดดั้งเดิม
+                            silentAimState.Hit = realHit
+                            silentAimState.HitTime = os.clock()
+                            return realHit
+                        end
+
+                        -- 10. ใช้ newcclosure เพื่อความเนียนในการซ่อน (ถ้า Executor รองรับ)
+                        if newcclosure then
+                            wrapper = newcclosure(wrapper)
+                        end
+                        patch.Wrapper = wrapper
+
+                        -- 11. ทำการ Hook
+                        local ok, original = pcall(hookmetamethod, game, "__namecall", patch.Wrapper)
+                        if ok and type(original) == "function" then
+                            patch.Original = original
+                            silentAimState.Patch = patch
+                        end
+                    end
+
+                    silentAimState.RaycastActive = not flag11 and silentAimState.Patch ~= nil and not silentAimState.Failed
+                    tbl12.RefreshSilentAim()
+                end
 
 				tbl12.TrackSilentAimPlayer = function(arg)
 					lib:GiveSignal(arg.CharacterAdded:Connect(function(character)
@@ -21566,7 +21592,7 @@ end
 							bodyPosition.Name = "RagdollBP"
 							bodyPosition.D = 1500
 							bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-							bodyPosition.Position = Vector3.new(0, 1000000, 0)
+							bodyPosition.Position = Vector3.new(0, 100, 0)
 							bodyPosition.Parent = main
 						end
 
@@ -30183,36 +30209,95 @@ end
 				end
 
 				do
-					local tbl16 = {}
+                    local tbl16 = {}
+                    tbl12.Kill = function(arg)
+                        local v22, v23, v24 = tbl12.Char(arg)
+                        if v24 and v24.Health ~= 0 and v23 and tbl12.GetMagnitude(workspace.SpawnLocation, v23) < 15000 and not tbl16[v22] then
+                            if tbl12.IsProtectedPlayer(arg, true) then return end
+                            
+                            v24.BreakJointsOnDeath = false
+                            tbl16[v22] = true
+                            
+                            task.spawn(function()
+                                local startTime = tick()
+                                local voidCFrame = CFrame.new(0, -9000, 0)
+                                
+                                while tick() - startTime < 1.5 and v23.Parent and v24.Health > 0 do
+                                    pcall(function() tbl12.SNO(v23) end)
+                                    pcall(function()
+                                        v23.AssemblyLinearVelocity = Vector3.new(math.random(-50000,50000), 50000, math.random(-50000,50000))
+                                        v23.AssemblyAngularVelocity = Vector3.new(50000, 50000, 50000)
+                                    end)
+                                    pcall(function() tbl12.Grab(v23) end)
+                                    
+                                    if tick() - startTime > 0.5 then
+                                        pcall(function() tbl12.Teleport(v23, voidCFrame) end)
+                                    end
+                                    
+                                    if tbl8.DeleteShurInNK then
+                                        task.spawn(tbl12.RemoveSticky, v22)
+                                    end
+                                    task.wait(0.05)
+                                end
+                                
+                                if v23.Parent and v24.Health > 0 then
+                                    pcall(function() v24:ChangeState(Enum.HumanoidStateType.Dead) end)
+                                    pcall(tbl12.DestroyObject, v22, v23)
+                                    pcall(function() tbl12.Teleport(v23, CFrame.new(0, -100000, 0)) end)
+                                end
+                                
+                                task.delay(1, function()
+                                    tbl16[v22] = nil
+                                end)
+                            end)
+                        end
+                    end
+                end
+            end
 
-					tbl12.Kill = function(arg)
-						local v22, v23, v24 = tbl12.Char(arg)
+			    tbl12.Void = function(arg)
+                    local v22, v23, v24 = tbl12.Char(arg)
+                    if v24 and v24.Health ~= 0 and v23 and tbl12.GetMagnitude(workspace.SpawnLocation, v23) < 15000 and tbl12.SNO(v23) then
+                        if tbl12.IsProtectedPlayer(arg, true) then return end
+                        
+                        if tbl8.DeleteShurInNK then
+                            task.spawn(tbl12.RemoveSticky, v22)
+                        end
 
-						if v24 and v24.Health ~= 0 and v23 and tbl12.GetMagnitude(workspace.SpawnLocation, v23) < 15000 and not tbl16[v22] then
-							v24.BreakJointsOnDeath = false
-							v24:ChangeState(Enum.HumanoidStateType.Dead)
-							tbl12.DestroyObject(v22, v23)
-							tbl16[v22] = true
+                        local originalFallenHeight = workspace.FallenPartsDestroyHeight
+                        workspace.FallenPartsDestroyHeight = -10000
+                        local cframe = CFrame.new(0, -50000, 0)
+                        local startTime = tick()
 
-							task.delay(1, function()
-								tbl16[v22] = nil
-							end)
-						end
-					end
-				end
-			end
+                        while tick() - startTime < 0.5 and v23.Parent and v24.Health > 0 do
+                            pcall(function() tbl12.SNO(v23) end)
+                            pcall(function() tbl12.PivotTo(v22, cframe) end)
+                            pcall(function() tbl12.Teleport(v23, cframe) end)
+                            pcall(function()
+                                v23.AssemblyLinearVelocity = Vector3.new(0, -1e9, 0)
+                                v23.AssemblyAngularVelocity = Vector3.new(1e9, 1e9, 1e9)
+                            end)
+                            
+                            if tbl8.RagdollInNK then
+                                task.spawn(tbl12.Ragdoll, v22)
+                            end
+                            task.wait(0.01)
+                        end
 
-			tbl12.Void = function(arg)
-				local v22, v23, v24 = tbl12.Char(arg)
-
-				if v24 and v24.Health ~= 0 and v23 and tbl12.GetMagnitude(workspace.SpawnLocation, v23) < 15000 and tbl12.SNO(v23) then
-					local cframe = CFrame.new(0, 9e9, 0)
-					tbl12.PivotTo(v22, cframe * v23.CFrame:Inverse() * v22:GetPivot())
-					tbl12.Teleport(v23, cframe)
-					v23.Velocity = Vector3.new(0, 9e9, 0)
-					task.delay(0.35, tbl12.RNO, v23)
-				end
-			end
+                        task.spawn(function()
+                            task.wait(0.1)
+                            if v24 and v24.Parent and v24.Health > 0 then
+                                pcall(function() v24.Health = 0 end)
+                                pcall(function() v24:ChangeState(Enum.HumanoidStateType.Dead) end)
+                                if tbl8.DestroyVoid then
+                                    pcall(tbl12.DestroyObject, v22, v23)
+                                end
+                            end
+                            task.wait(1)
+                            workspace.FallenPartsDestroyHeight = originalFallenHeight
+                        end)
+                    end
+                end
 
 			tbl12.EatAntiInput = function(arg)
 				local v22 = tbl12.Char(arg)
@@ -32423,193 +32508,233 @@ end
 			end
 		end
 
-		tbl12.ProcessPlayer = function(arg, arg2, arg3, arg4, arg5)
-			local function fn21(arg6, arg7)
-				tbl12.RunPlayerMethod(arg6, arg7, arg, arg2, arg5)
-			end
+		                tbl12.ProcessPlayer = function(arg, arg2, arg3, arg4, arg5)
+                    local function fn21(arg6, arg7)
+                        tbl12.RunPlayerMethod(arg6, arg7, arg, arg2, arg5)
+                    end
 
-			if arg4 then
-				local blobMethod = tbl9.BlobMethod
+                    if arg4 then
+                        local blobMethod = tbl9.BlobMethod
+                        local v22, v23 = tbl12.Char(arg) -- ดึงตัวละครมาเตรียมคอมโบ
 
-				if blobMethod == "Bring" then
-					fn21("Blob_Bring", tbl14.Bring)
-				elseif blobMethod == "Kill" then
-					fn21("Blob_Kill", tbl14.Kill)
-				elseif blobMethod == "Follow" then
-					fn21("Blob_Follow", tbl14.Follow)
-				elseif blobMethod == "Remove Gucci" then
-					fn21("Blob_RemoveGucci", tbl14.RemoveGucci)
-				elseif blobMethod == "Lock" then
-					local fn22
+                        if blobMethod == "Bring" then
+                            fn21("Blob_Bring", tbl14.Bring)
+                        elseif blobMethod == "Kill" then
+                            -- [โหดขึ้น] คอมโบ Ragdoll + Grab ก่อนให้ Blobman จัดการ
+                            if v22 and v23 then
+                                pcall(tbl12.Ragdoll, v22)
+                                pcall(tbl12.Grab, v23)
+                            end
+                            fn21("Blob_Kill", tbl14.Kill)
+                        elseif blobMethod == "Follow" then
+                            fn21("Blob_Follow", tbl14.Follow)
+                        elseif blobMethod == "Remove Gucci" then
+                            fn21("Blob_RemoveGucci", tbl14.RemoveGucci)
+                        elseif blobMethod == "Lock" then
+                            local fn22
 
-					if arg2 then
-						fn22 = function(arg6)
-							tbl14.LoopLock(arg6, arg5)
-						end
-					else
-						fn22 = tbl14.Lock
-					end
+                            if arg2 then
+                                fn22 = function(arg6)
+                                    tbl14.LoopLock(arg6, arg5)
+                                end
+                            else
+                                fn22 = tbl14.Lock
+                            end
 
-					fn21("Blob_Lock", fn22)
-				elseif blobMethod == "Kick" and not arg3 then
-					local loopKick
+                            fn21("Blob_Lock", fn22)
+                        elseif blobMethod == "Kick" and not arg3 then
+                            local loopKick
 
-					if arg2 then
-						loopKick = tbl14.LoopKick
-					else
-						loopKick = tbl14.Kick
-					end
+                            if arg2 then
+                                loopKick = tbl14.LoopKick
+                            else
+                                loopKick = tbl14.Kick
+                            end
+                            
+                            -- [โหดขึ้น] คอมโบก่อนให้ Blobman เตะ
+                            if v22 and v23 then
+                                pcall(tbl12.Ragdoll, v22)
+                            end
 
-					fn21("Blob_Kick", loopKick)
-				end
+                            fn21("Blob_Kick", loopKick)
+                        end
 
-				return
-			end
+                        return
+                    end
 
-			local targetMethods = tbl7.TargetMethods
-			local v22, v23 = tbl12.Char(arg)
+                    local targetMethods = tbl7.TargetMethods
+                    local v22, v23 = tbl12.Char(arg)
 
-			if targetMethods["Remove Invisibility"] and v23 then
-				v23.Massless = false
-			end
+                    if targetMethods["Remove Invisibility"] and v23 then
+                        v23.Massless = false
+                    end
 
-			if targetMethods.Bring then
-				fn21("Bring", tbl12.BringPlayer)
-			end
+                    if targetMethods.Bring then
+                        fn21("Bring", tbl12.BringPlayer)
+                    end
 
-			local kick = targetMethods.Kick
-			local flag12
+                    local kick = targetMethods.Kick
+                    local flag12
 
-			if kick then
-				local flag13 = arg3 and tbl9.KickServerMethod == "Void"
+                    if kick then
+                        local flag13 = arg3 and tbl9.KickServerMethod == "Void"
 
-				if flag13 then
-					flag12 = flag13
-				else
-					flag12 = not arg3 and not arg2
-				end
-			else
-				flag12 = kick
-			end
+                        if flag13 then
+                            flag12 = flag13
+                        else
+                            flag12 = not arg3 and not arg2
+                        end
+                    else
+                        flag12 = kick
+                    end
 
-			if flag12 then
-				fn21("Kick", tbl12.Void)
-			end
+                    if flag12 then
+                        -- [โหดขึ้น] คอมโบก่อนเตะลง Void: ทำให้อ่อน + ล็อค + ปั่นความเร็ว
+                        if v22 and v23 then
+                            pcall(tbl12.Ragdoll, v22)
+                            pcall(tbl12.Grab, v23)
+                            pcall(function()
+                                v23.AssemblyLinearVelocity = Vector3.new(0, 50000, 0)
+                                v23.AssemblyAngularVelocity = Vector3.new(50000, 50000, 50000)
+                            end)
+                        end
+                        fn21("Kick", tbl12.Void)
+                    end
 
-			if targetMethods.Kill then
-				fn21("Kill", tbl12.Kill)
-			end
+                    if targetMethods.Kill then
+                        -- [โหดขึ้น] คอมโบก่อน Kill: ทำให้อ่อน + ปั่นหัว
+                        if v22 and v23 then
+                            pcall(tbl12.Ragdoll, v22)
+                            pcall(function()
+                                v23.AssemblyAngularVelocity = Vector3.new(math.random(-50000, 50000), 50000, math.random(-50000, 50000))
+                            end)
+                        end
+                        fn21("Kill", tbl12.Kill)
+                    end
 
-			if targetMethods.Void then
-				fn21("Void", tbl12.Void)
-			end
+                    if targetMethods.Void then
+                        -- [โหดขึ้น] ใส่ Velocity กระแทกลงพื้นโลกก่อนโยนลง Void
+                        if v23 then
+                            pcall(function()
+                                v23.AssemblyLinearVelocity = Vector3.new(0, -1e5, 0)
+                            end)
+                        end
+                        fn21("Void", tbl12.Void)
+                    end
 
-			if targetMethods["Remove Gucci"] then
-				fn21("Remove Gucci", tbl12.RemoveGucci)
-			end
+                    if targetMethods["Remove Gucci"] then
+                        fn21("Remove Gucci", tbl12.RemoveGucci)
+                    end
 
-			if targetMethods["Destroy Food"] then
-				fn21("Destroy Food", tbl12.EatAntiInput)
-			end
+                    if targetMethods["Destroy Food"] then
+                        fn21("Destroy Food", tbl12.EatAntiInput)
+                    end
 
-			if targetMethods["Delete Seatables"] then
-				fn21("Delete Seatables", tbl12.DeleteSeatables)
-			end
-		end
+                    if targetMethods["Delete Seatables"] then
+                        fn21("Delete Seatables", tbl12.DeleteSeatables)
+                    end
+                end
 
-		tbl12.ProcessToyEffects = function(arg, arg2, arg3, arg4, arg5)
-			local toyEffects = tbl7.ToyEffects
+                tbl12.ProcessToyEffects = function(arg, arg2, arg3, arg4, arg5)
+                    local toyEffects = tbl7.ToyEffects
+                    local v22, v23 = tbl12.Char(arg) -- ดึงตัวละครมาเตรียมคอมโบ
 
-			if toyEffects.Oven then
-				tbl12.RunPlayerMethod("ToyEffect_Oven", tbl12.MakeBlack, arg, arg2, arg5)
-			end
+                    if toyEffects.Oven then
+                        -- [โหดขึ้น] ปั่นความเร็วก่อนยัดลงเตาอบ
+                        if v23 then pcall(function() v23.AssemblyLinearVelocity = Vector3.new(0, 5000, 0) end) end
+                        tbl12.RunPlayerMethod("ToyEffect_Oven", tbl12.MakeBlack, arg, arg2, arg5)
+                    end
 
-			if toyEffects.Microwave then
-				tbl12.RunPlayerMethod("ToyEffect_Microwave", tbl12.Microwave, arg, arg2, arg5)
-			end
+                    if toyEffects.Microwave then
+                        -- [โหดขึ้น] ปั่นความเร็วก่อนยัดลงไมโครเวฟ
+                        if v23 then pcall(function() v23.AssemblyLinearVelocity = Vector3.new(0, 5000, 0) end) end
+                        tbl12.RunPlayerMethod("ToyEffect_Microwave", tbl12.Microwave, arg, arg2, arg5)
+                    end
 
-			if toyEffects.Banana then
-				tbl12.RunPlayerMethod("ToyEffect_Banana", tbl12.BananaRagdoll, arg, arg2, arg5)
-			end
+                    if toyEffects.Banana then
+                        tbl12.RunPlayerMethod("ToyEffect_Banana", tbl12.BananaRagdoll, arg, arg2, arg5)
+                    end
 
-			if toyEffects["Delete Limbs"] then
-				tbl12.RunPlayerMethod("ToyEffect_DeleteLimbs", function(arg6)
-					tbl12.BreakLimb(arg6, tbl9.TargetedLimbTE)
-				end, arg, arg2, arg5)
-			end
+                    if toyEffects["Delete Limbs"] then
+                        tbl12.RunPlayerMethod("ToyEffect_DeleteLimbs", function(arg6)
+                            tbl12.BreakLimb(arg6, tbl9.TargetedLimbTE)
+                        end, arg, arg2, arg5)
+                    end
 
-			if toyEffects.Campfire then
-				tbl12.RunPlayerMethod("ToyEffect_Campfire", tbl12.Campfire, arg, arg2, arg5)
-			end
+                    if toyEffects.Campfire then
+                        tbl12.RunPlayerMethod("ToyEffect_Campfire", tbl12.Campfire, arg, arg2, arg5)
+                    end
 
-			if toyEffects.Fling then
-				tbl12.RunPlayerMethod("ToyEffect_Fling", tbl12.Fling, arg, arg2, arg5)
-			end
-		end
+                    if toyEffects.Fling then
+                        tbl12.RunPlayerMethod("ToyEffect_Fling", tbl12.Fling, arg, arg2, arg5)
+                    end
+                end
 
-		tbl12.CreateLoopToggle = function(arg, arg2, arg3, arg4, arg5, arg6, arg7)
-			local str5
+                tbl12.CreateLoopToggle = function(arg, arg2, arg3, arg4, arg5, arg6, arg7)
+                    local str5
 
-			if arg4 then
-				str5 = "Server"
-			else
-				str5 = "Selected"
-			end
+                    if arg4 then
+                        str5 = "Server"
+                    else
+                        str5 = "Selected"
+                    end
 
-			local str6
+                    local str6
 
-			if arg4 then
-				str6 = "all"
-			else
-				str6 = "selected"
-			end
+                    if arg4 then
+                        str6 = "all"
+                    else
+                        str6 = "selected"
+                    end
 
-			local processPlayer = arg7 or tbl12.ProcessPlayer
-			local flag12 = processPlayer == tbl12.ProcessPlayer
+                    local processPlayer = arg7 or tbl12.ProcessPlayer
+                    local flag12 = processPlayer == tbl12.ProcessPlayer
 
-			arg:AddToggle(arg2, {
-				Text = "Loop Apply Method " .. str5,
-				Default = false,
-				Tooltip = "Keeps applying selected methods to " .. str6 .. " players",
-				Callback = function(arg8)
-					tbl12.SetRuntimeToggle(arg3, arg8)
-					tbl10.LoopTokens[arg3] = (tbl10.LoopTokens[arg3] or 0) + 1
-					tbl10.Cancel(arg3)
-					if not arg8 then
-						return
-					end
-					local v22 = tbl10.LoopTokens[arg3]
+                    arg:AddToggle(arg2, {
+                        Text = "Loop Apply Method " .. str5,
+                        Default = false,
+                        Tooltip = "Keeps applying selected methods to " .. str6 .. " players",
+                        Callback = function(arg8)
+                            tbl12.SetRuntimeToggle(arg3, arg8)
+                            tbl10.LoopTokens[arg3] = (tbl10.LoopTokens[arg3] or 0) + 1
+                            tbl10.Cancel(arg3)
+                            if not arg8 then
+                                return
+                            end
+                            local v22 = tbl10.LoopTokens[arg3]
 
-					task.spawn(function()
-						while not flag11 and tbl8[arg3] and tbl10.LoopTokens[arg3] == v22 do
-							if arg5 and arg4 and tbl9.BlobMethod == "Kick" then
-								tbl14.KickServer()
-								task.wait(1)
-							else
+                            task.spawn(function()
+                                while not flag11 and tbl8[arg3] and tbl10.LoopTokens[arg3] == v22 do
+                                    if arg5 and arg4 and tbl9.BlobMethod == "Kick" then
+                                        tbl14.KickServer()
+                                        -- [โหดขึ้น] สแปมไวขึ้น (จาก 1 วินาที -> 0.1 วินาที)
+                                        task.wait(0.1)
+                                    else
 
-								if flag12 and not arg5 and arg4 and tbl7.TargetMethods.Kick and tbl9.KickServerMethod == "Circle + Lag" then
-									tbl12.KickServer(true)
-								end
+                                        if flag12 and not arg5 and arg4 and tbl7.TargetMethods.Kick and tbl9.KickServerMethod == "Circle + Lag" then
+                                            tbl12.KickServer(true)
+                                        end
 
-								for _, v23 in ipairs(tbl12.GetTargets(arg4, arg6)) do
-									if not (not tbl8[arg3] or tbl10.LoopTokens[arg3] ~= v22) then
-										processPlayer(v23, true, arg4, arg5, arg3)
-										continue
-									end
-									break
-								end
-							end
+                                        for _, v23 in ipairs(tbl12.GetTargets(arg4, arg6)) do
+                                            if not (not tbl8[arg3] or tbl10.LoopTokens[arg3] ~= v22) then
+                                                processPlayer(v23, true, arg4, arg5, arg3)
+                                                continue
+                                            end
+                                            break
+                                        end
+                                    end
 
-							if flag12 and not arg5 and arg4 and tbl7.TargetMethods.Kick and tbl9.KickServerMethod == "Circle + Lag" then
-								task.wait(10)
-							else
-								task.wait()
-							end
-						end
-					end)
-				end,
-			})
-		end
+                                    if flag12 and not arg5 and arg4 and tbl7.TargetMethods.Kick and tbl9.KickServerMethod == "Circle + Lag" then
+                                        -- [โหดขึ้น] สแปม KickServer ไวขึ้น (จาก 10 วินาที -> 2 วินาที)
+                                        task.wait(2)
+                                    else
+                                        task.wait()
+                                    end
+                                end
+                            end)
+                        end,
+                    })
+                end
 
 		tbl12.CreateApplyButton = function(arg, arg2, arg3, arg4, arg5)
 			local str5
@@ -35719,208 +35844,302 @@ end)
 				end)
 			end
 
-			local function fn22(arg)
-				if not arg then
-					return
-				end
-				local v22, v23, v24 = tbl12.Char(arg)
+			                local function fn22(arg)
+                    -- ฟังก์ชันนี้ทำหน้าที่ "ล้างค่า / คืนสภาพ" เมื่อเป้าหมายหลุดจากการควบคุม
+                    if not arg then
+                        return
+                    end
+                    local v22, v23, v24 = tbl12.Char(arg)
 
-				if v23 then
-					local kickAP = v23:FindFirstChild("KickAP")
-					local kickAO = v23:FindFirstChild("KickAO")
-					local weldHRP = v23:FindFirstChild("WeldHRP")
+                    if v23 then
+                        local kickAP = v23:FindFirstChild("KickAP")
+                        local kickAO = v23:FindFirstChild("KickAO")
+                        local weldHRP = v23:FindFirstChild("WeldHRP")
 
-					if kickAP then
-						kickAP:Destroy()
-					end
+                        
+                        if kickAP then kickAP:Destroy() end
+                        if kickAO then kickAO:Destroy() end
 
-					if kickAO then
-						kickAO:Destroy()
-					end
+                        -- คืนค่าข้อต่อถ้าเป้าหมายกำลัง Ragdoll อยู่
+                        if weldHRP and v24:FindFirstChild("Ragdolled") and v24.Ragdolled.Value then
+                            weldHRP.Enabled = true
+                        end
 
-					if weldHRP and v24:FindFirstChild("Ragdolled") and v24.Ragdolled.Value then
-						weldHRP.Enabled = true
-					end
+                        -- คืนสิทธิ์ Network Owner ให้เขา
+                        if tbl12.IsNetworkOwner(v23) then
+                            fn21(v23, nil)
+                        end
+                    end
 
-					if tbl12.IsNetworkOwner(v23) then
-						fn21(v23, nil)
-					end
-				end
+                    -- คืนกระดูก (Motor6D) และคืนการชน (Collisions) ให้กลับมาปกติ
+                    if v22 then
+                        task.spawn(tbl12.ToggleMotor6D, v22, true, true)
+                        task.spawn(tbl12.ToggleCollisions, v22, true)
+                    end
+                end
 
-				if v22 then
-					task.spawn(tbl12.ToggleMotor6D, v22, true, true)
-					task.spawn(tbl12.ToggleCollisions, v22, true)
-				end
-			end
+                local function fn23(arg, arg2, arg3)
+                    -- ฟังก์ชันคำนวณตำแหน่งให้เป้าหมายลอยเป็นวงกลมรอบตัวเรา
+                    local n36 = 6.2831853071795862 / arg3 * (arg2 - 1)
+                    local nkOffset = tbl9.NKOffset
+                    return arg.Position + Vector3.new(math.cos(n36) * 10, nkOffset, math.sin(n36) * 10)
+                end
 
-			local function fn23(arg, arg2, arg3)
-				local n36 = 6.2831853071795862 / arg3 * (arg2 - 1)
-				local nkOffset = tbl9.NKOffset
-				return arg.Position + Vector3.new(math.cos(n36) * 10, nkOffset, math.sin(n36) * 10)
-			end
+                -- =====================================================================
+                -- ตัวแปรสำหรับ "จับเวลา" เพื่อสลับสถานะ ล้ม -> ลุก -> ล้ม
+                -- =====================================================================
+                local ragdollStates = {}
 
-			while task.wait() do
-				if flag11 then
-					for k in tbl16, nil, nil do
-						fn22(k)
-					end
+                while task.wait() do
+                    if flag11 then
+                        for k in tbl16, nil, nil do
+                            fn22(k)
+                            ragdollStates[k] = nil
+                        end
+                        return
+                    end
 
-					return
-				end
+                    if not tbl8.LoopApplyMethodT then
+                        for k in tbl16, nil, nil do
+                            fn22(k)
+                            tbl16[k] = nil
+                            ragdollStates[k] = nil
+                        end
 
-				if not tbl8.LoopApplyMethodT then
-					for k in tbl16, nil, nil do
-						fn22(k)
-						tbl16[k] = nil
-					end
+                        if not tbl12.WaitForRuntimeToggle("LoopApplyMethodT") then
+                            return
+                        end
+                    end
 
-					if not tbl12.WaitForRuntimeToggle("LoopApplyMethodT") then
-						return
-					end
-				end
+                    local loopApplyMethodT = tbl8.LoopApplyMethodT
+                    local selectedPlayers = tbl7.SelectedPlayers
+                    local targetMethods = tbl7.TargetMethods
 
-				local loopApplyMethodT = tbl8.LoopApplyMethodT
-				local selectedPlayers = tbl7.SelectedPlayers
-				local targetMethods = tbl7.TargetMethods
+                    for k in tbl16, nil, nil do
+                        if k and (not k.Parent or not targetMethods.Kick or inPlot.Value or not loopApplyMethodT or not selectedPlayers[k]) then
+                            fn22(k)
+                            tbl16[k] = nil
+                            ragdollStates[k] = nil
+                        end
+                    end
 
-				for k in tbl16, nil, nil do
-					if k and (not k.Parent or not targetMethods.Kick or inPlot.Value or not loopApplyMethodT or not selectedPlayers[k]) then
-						fn22(k)
-						tbl16[k] = nil
-					end
-				end
+                    if not (not loopApplyMethodT or not targetMethods.Kick or inPlot.Value) then
+                        local v22, v23, v24 = tbl12.Char()
 
-				if not (not loopApplyMethodT or not targetMethods.Kick or inPlot.Value) then
-					local v22, v23, v24 = tbl12.Char()
+                        if v23 and v24 and v24.Health > 0 then
+                            local tbl17 = {}
 
-					if v23 and v24 and v24.Health > 0 then
-						local tbl17 = {}
+                            for k in selectedPlayers, nil, nil do
+                                if k and k.Parent and k:IsA("Player") then
+                                    table.insert(tbl17, k)
+                                    tbl16[k] = true
+                                end
+                            end
 
-						for k in selectedPlayers, nil, nil do
-							if k and k.Parent and k:IsA("Player") then
-								table.insert(tbl17, k)
-								tbl16[k] = true
-							end
-						end
+                            if #tbl17 ~= 0 then
+                                for i, v25 in ipairs(tbl17) do
+                                    if v23 and v24 and v24.Health > 0 and not inPlot.Value then
+                                        local v26, v27, v28 = tbl12.Char(v25)
+                                        local torso = v26 and v26:FindFirstChild("Torso")
 
-						if #tbl17 ~= 0 then
-							for i, v25 in ipairs(tbl17) do
-								if v23 and v24 and v24.Health > 0 and not inPlot.Value then
-									local v26, v27, v28 = tbl12.Char(v25)
-									local torso = v26 and v26:FindFirstChild("Torso")
+                                        if not (v27 and v28 and torso and v28.Health > 0) then
+                                            fn22(v25)
+                                            ragdollStates[v25] = nil
+                                        else
+                                            -- 1. คำนวณตำแหน่งล็อค (ให้ลอยเป็นวงกลมรอบตัวเรา)
+                                            local v29 = fn23(v23, i, #tbl17)
+                                            local kickAP = v27:FindFirstChild("KickAP")
+                                            local kickAO = v27:FindFirstChild("KickAO")
+                                            local weldHRP = v27:FindFirstChild("WeldHRP")
 
-									if not (v27 and v28 and torso and v28.Health > 0) then
-										fn22(v25)
-									else
-										local v29 = fn23(v23, i, #tbl17)
-										local kickAP = v27:FindFirstChild("KickAP")
-										local kickAO = v27:FindFirstChild("KickAO")
-										local weldHRP = v27:FindFirstChild("WeldHRP")
+                                            -- 2. สร้างตัวล็อคตำแหน่ง (ถ้ายังไม่มี)
+                                            if not kickAP or not kickAO then
+                                                if kickAP then kickAP:Destroy() end
+                                                if kickAO then kickAO:Destroy() end
 
-										if not kickAP or not kickAO then
-											if kickAP then
-												kickAP:Destroy()
-											end
+                                                kickAP = Instance.new("BodyPosition")
+                                                local bodyGyro = Instance.new("BodyGyro")
+                                                kickAP.D = 200
+                                                kickAP.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                                                kickAP.Position = v29
+                                                kickAP.Parent = v27
+                                                bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                                                bodyGyro.D = 200
+                                                bodyGyro.CFrame = CFrame.new()
+                                                bodyGyro.Parent = v27
+                                                kickAP.Name = "KickAP"
+                                                bodyGyro.Name = "KickAO"
+                                            end
 
-											if kickAO then
-												kickAO:Destroy()
-											end
+                                            if weldHRP then
+                                                weldHRP.Enabled = false
+                                            end
 
-											kickAP = Instance.new("BodyPosition")
-											local bodyGyro = Instance.new("BodyGyro")
-											kickAP.D = 200
-											kickAP.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-											kickAP.Position = v29
-											kickAP.Parent = v27
-											bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-											bodyGyro.D = 200
-											bodyGyro.CFrame = CFrame.new()
-											bodyGyro.Parent = v27
-											kickAP.Name = "KickAP"
-											bodyGyro.Name = "KickAO"
-										end
+                                            -- อัปเดตตำแหน่งล็อคให้วนรอบตัวเรา
+                                            kickAP.Position = v29
+                                            local flag12
 
-										if weldHRP then
-											weldHRP.Enabled = false
-										end
+                                            if not (tbl12.GetMagnitude(v23, v27) > 33) then
+                                                -- ถ้าระยะไม่เกิน 33 ให้ Grab ตรงๆ
+                                                                                                tbl12.Grab(v27)
+                                                flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
 
-										kickAP.Position = v29
-										local flag12
+                                                if flag12 then
+                                                    -- เปลี่ยนจาก 0 เป็น 0.05
+                                                    task.delay(0.05, tbl12.RNO, v27)
+                                                elseif tbl9.NKDelayMode == "Normal" then
+                                                    task.spawn(function()
+                                                        -- เปลี่ยนจาก task.wait() เป็น task.wait(0.1)
+                                                        task.wait(0.1)
+                                                        tbl12.RNO(v27)
+                                                    end)
+                                                end
 
-										if not (tbl12.GetMagnitude(v23, v27) > 33) then
-											tbl12.Grab(v27)
-											flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
+                                                -- =====================================================================
+                                                -- [ระบบ ล้ม-ลุก] ทำงานเฉพาะเมื่อเปิด "RagdollInNK"
+                                                -- =====================================================================
+                                                if tbl8.RagdollInNK then
+                                                    -- ถ้ายังไม่เริ่ม ให้เริ่มสถานะ "ล้ม" ก่อน
+                                                    if not ragdollStates[v25] then
+                                                        ragdollStates[v25] = { phase = "stand", timer = os.clock() - 2 }
+                                                        warn("[LA Debug] " .. v25.Name .. " | เริ่มเฟสแรก: RAGDOLL (ล้ม)")
+                                                    end
+                                                    
+                                                    local state = ragdollStates[v25]
+                                                    local timePassed = os.clock() - state.timer
 
-											if flag12 then
-												task.delay(0.001, tbl12.RNO, v27)
-											elseif tbl9.NKDelayMode == "Normal" then
-												task.spawn(function()
-													task.wait()
-													tbl12.RNO(v27)
-												end)
-											end
+                                                    -- [เฟส 1: ล้ม] ถ้าอยู่ในสถานะล้ม และครบ 1.5 วินาที ให้เปลี่ยนเป็นลุก
+                                                    if state.phase == "ragdoll" and timePassed > 1.5 then
+                                                        state.phase = "stand"
+                                                        state.timer = os.clock()
+                                                        
+                                                        warn("[LA Debug] " .. v25.Name .. " | ครบ 1.5 วิ -> เปลี่ยนเป็น: STAND (ลุก)")
+                                                        
+                                                        pcall(tbl12.SNO, v27) -- สำคัญมาก: ต้องยึดสิทธิ์ Network ก่อนเปลี่ยนสถานะ
+                                                        pcall(function()
+                                                            if kickAP then kickAP.Enabled = true end -- เปิดตัวล็อคตำแหน่ง เพื่อดึงตัวกลับมาตั้งหลัก
+                                                            tbl12.ToggleMotor6D(v26, true, true) -- คืนกระดูก (ต่อแขนขากลับ)
+                                                            v28.PlatformStand = false -- ปิดสถานะล้ม
+                                                            v28:ChangeState(Enum.HumanoidStateType.Running) -- สั่งให้ลุกขึ้นยืน
+                                                        end)
+                                                        
+                                                    -- [เฟส 2: ลุก] ถ้าอยู่ในสถานะลุก และครบ 1 วินาที ให้ล้มลงไปใหม่
+                                                    elseif state.phase == "stand" and timePassed > 1 then
+                                                        state.phase = "ragdoll"
+                                                        state.timer = os.clock()
+                                                        
+                                                        warn("[LA Debug] " .. v25.Name .. " | ครบ 1 วิ -> เปลี่ยนเป็น: RAGDOLL (ล้ม)")
+                                                        
+                                                        pcall(tbl12.SNO, v27) -- ยึดสิทธิ์ Network
+                                                        pcall(function()
+                                                            if kickAP then kickAP.Enabled = false end -- ปิดตัวล็อคตำแหน่ง เพื่อให้ฟิสิกส์ล้มลงได้
+                                                            tbl11.RagdollRemote:FireServer(v27, 0.5) -- แจ้ง Server ให้ตัวอ่อน
+                                                            v28.PlatformStand = true -- บังคับให้ล้ม
+                                                            v28:ChangeState(Enum.HumanoidStateType.Physics) -- ปล่อยให้ฟิสิกส์ทำงาน
+                                                        end)
+                                                    end
+                                                end
+                                                -- =====================================================================
 
-											if tbl8.RagdollInNK then
-												task.spawn(tbl12.Ragdoll, v26)
-											end
+                                                if tbl8.DeleteShurInNK then
+                                                    task.spawn(tbl12.RemoveSticky, v26)
+                                                end
 
-											if tbl8.DeleteShurInNK then
-												task.spawn(tbl12.RemoveSticky, v26)
-											end
+                                                tbl12.ToggleCollisions(v26, false)
+                                                tbl12.RepositionLimbs(v26, true)
 
-											tbl12.ToggleCollisions(v26, false)
-											tbl12.RepositionLimbs(v26, true)
+                                                task.delay(0, function()
+                                                    if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
+                                                        fn21(v27, v27)
+                                                    end
+                                                end)
+                                            elseif tbl12.SNO(v27) then
+                                                -- ถ้าระยะเกิน 33 ให้วาร์ปไปหาแล้ว Grab
+                                                tbl12.Teleport(v27, v29)
+                                                tbl12.Grab(v27)
+                                                flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
 
-											task.delay(0, function()
-												if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
-													fn21(v27, v27)
-												end
-											end)
-										elseif tbl12.SNO(v27) then
-											tbl12.Teleport(v27, v29)
-											tbl12.Grab(v27)
-											flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
+                                                if flag12 then
+                                                    -- เปลี่ยนจาก 0.001 เป็น 0.05 (50ms)
+                                                    task.delay(0.05, tbl12.RNO, v27) 
+                                                elseif tbl9.NKDelayMode == "Normal" then
+                                                    task.spawn(function()
+                                                        -- เปลี่ยนจาก task.wait() เป็น task.wait(0.1) (100ms)
+                                                        task.wait(0.1) 
+                                                        tbl12.RNO(v27)
+                                                    end)
+                                                end
 
-											if flag12 then
-												task.delay(0, tbl12.RNO, v27)
-											elseif tbl9.NKDelayMode == "Normal" then
-												task.spawn(function()
-													task.wait()
-													tbl12.RNO(v27)
-												end)
-											end
+                                                -- =====================================================================
+                                                -- [ระบบ ล้ม-ลุก] (โค้ดชุดเดียวกับด้านบน)
+                                                -- =====================================================================
+                                                if tbl8.RagdollInNK then
+                                                    if not ragdollStates[v25] then
+                                                        ragdollStates[v25] = { phase = "ragdoll", timer = os.clock() }
+                                                        warn("[LA Debug] " .. v25.Name .. " | เริ่มเฟสแรก (วาร์ป): RAGDOLL (ล้ม)")
+                                                    end
+                                                    
+                                                    local state = ragdollStates[v25]
+                                                    local timePassed = os.clock() - state.timer
 
-											if tbl8.RagdollInNK then
-												task.spawn(tbl12.Ragdoll, v26)
-											end
+                                                    if state.phase == "ragdoll" and timePassed > 1.5 then
+                                                        state.phase = "stand"
+                                                        state.timer = os.clock()
+                                                        
+                                                        warn("[LA Debug] " .. v25.Name .. " | ครบ 1.5 วิ (วาร์ป) -> เปลี่ยนเป็น: STAND (ลุก)")
+                                                        
+                                                        pcall(tbl12.SNO, v27)
+                                                        pcall(function()
+                                                            if kickAP then kickAP.Enabled = true end
+                                                            tbl12.ToggleMotor6D(v26, true, true)
+                                                            v28.PlatformStand = false
+                                                            v28:ChangeState(Enum.HumanoidStateType.Running)
+                                                        end)
+                                                        
+                                                    elseif state.phase == "stand" and timePassed > 1 then
+                                                        state.phase = "ragdoll"
+                                                        state.timer = os.clock()
+                                                        
+                                                        warn("[LA Debug] " .. v25.Name .. " | ครบ 1 วิ (วาร์ป) -> เปลี่ยนเป็น: RAGDOLL (ล้ม)")
+                                                        
+                                                        pcall(tbl12.SNO, v27)
+                                                        pcall(function()
+                                                            if kickAP then kickAP.Enabled = false end
+                                                            tbl11.RagdollRemote:FireServer(v27, 0.5)
+                                                            v28.PlatformStand = true
+                                                            v28:ChangeState(Enum.HumanoidStateType.Physics)
+                                                        end)
+                                                    end
+                                                end
+                                                -- =====================================================================
 
-											if tbl8.DeleteShurInNK then
-												task.spawn(tbl12.RemoveSticky, v26)
-											end
+                                                if tbl8.DeleteShurInNK then
+                                                    task.spawn(tbl12.RemoveSticky, v26)
+                                                end
 
-											tbl12.ToggleCollisions(v26, false)
-											tbl12.RepositionLimbs(v26, true)
+                                                tbl12.ToggleCollisions(v26, false)
+                                                tbl12.RepositionLimbs(v26, true)
 
-											task.delay(0, function()
-												if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
-													fn21(v27, v27)
-												end
-											end)
-										else
-											fn21(v27, nil)
-										end
-									end
-								end
-							end
+                                                task.delay(0, function()
+                                                    if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
+                                                        fn21(v27, v27)
+                                                    end
+                                                end)
+                                            else
+                                                fn21(v27, nil)
+                                            end
+                                        end
+                                    end
+                                end
 
-							if tbl9.NKDelayMode == "Normal" then
-								task.wait()
-							end
-						end
-					end
-				end
-			end
-		end)
+                                if tbl9.NKDelayMode == "Normal" then
+                                    task.wait()
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
 
 		lib.ForceCheckbox = true
 
@@ -38007,9 +38226,9 @@ end)
 
 		Config:AddSlider("AntiInpLagDel", {
 			Text = "Grab & Drop Delay",
-			Default = 0.05,
+			Default = 1,
 			Min = 0,
-			Max = 0.3,
+			Max = 1,
 			Suffix = " sec",
 			Rounding = 2,
 			Callback = function(inputLgDelay)
@@ -38017,7 +38236,7 @@ end)
 			end,
 		})
 
-		Config:AddLabel("Below 0.05 can cause high ping")
+		Config:AddLabel("Below 1 can cause high ping")
 
 		Config:AddSlider("ItemTransAK", {
 			Text = "Item Transparency",
@@ -38118,7 +38337,6 @@ end)
 				"Kill",
 				"Bring",
 				"Destroy Food",
-				"Remove Gucci",
 				"Remove Invisibility",
 				"Delete Seatables",
 			},
@@ -38160,17 +38378,196 @@ end)
 			end,
 		})
 
-		v21:AddToggle("EKIToggle", {
-			Text = "Experimental Kick Improvements [BETA]",
-			Risky = true,
-			Default = tbl8.EKI,
-			Tooltip = "Improves the kick, but can get very buggy! This also doesn't work on bad executors",
-			DisabledTooltip = "Your executor does not support this feature!",
-			Disabled = typeof(sethiddenproperty) ~= "function",
-			Callback = function(eki)
-				tbl8.EKI = eki
-			end,
-		})
+		v21:AddToggle("VoidKillTargetToggle", {
+    Text = "Remove Gucci // loop is so bug",
+    Default = false,
+    Callback = function(state)
+        if not state then
+            -- ปิดการทำงาน
+            _G.VoidKillState = false
+            if _G.VoidKillThread then
+                task.cancel(_G.VoidKillThread)
+                _G.VoidKillThread = nil
+            end
+            return
+        end
+
+        -- เปิดการทำงาน
+        _G.VoidKillState = true
+
+        _G.VoidKillThread = task.spawn(function()
+            local Players = game:GetService("Players")
+            local RunService = game:GetService("RunService")
+            local LocalPlayer = Players.LocalPlayer
+
+            while _G.VoidKillState do
+                local selected = tbl7.SelectedPlayers
+                if not selected or next(selected) == nil then
+                    task.wait(0.5)
+                    continue
+                end
+
+                for targetPlayer in pairs(selected) do
+                    if not _G.VoidKillState then break end
+                    if not targetPlayer or targetPlayer == LocalPlayer then continue end
+
+                    local prevDestroyHeight = workspace.FallenPartsDestroyHeight
+                    local FallenPartsDestroyHeight = prevDestroyHeight
+
+                    if FallenPartsDestroyHeight ~= FallenPartsDestroyHeight then
+                        workspace.FallenPartsDestroyHeight = -500
+                        FallenPartsDestroyHeight = -499.99
+                    end
+
+                    local cFrame2 = CFrame.new(
+                        0,
+                        FallenPartsDestroyHeight <= -500 and -499.99
+                            or FallenPartsDestroyHeight <= -100 and -99.99
+                            or -99.99,
+                        9999
+                    )
+
+                    local char = LocalPlayer.Character
+                    if not char then continue end
+
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    local Humanoid = char:FindFirstChildOfClass("Humanoid")
+
+                    if not hrp or not Humanoid then continue end
+
+                    local Character2 = targetPlayer.Character
+                    local HumanoidRootPart = Character2 and Character2:FindFirstChild("HumanoidRootPart")
+
+                    if not HumanoidRootPart then continue end
+
+                    local targetMethodWidgets = {
+                        "CreatureBlobman", "TractorRed", "TractorOrange", "TractorGreen", "SantaSleigh"
+                    }
+                    local toysFolder = workspace:FindFirstChild(targetPlayer.Name .. "SpawnedInToys")
+                    local vehicleSeat
+
+                    if toysFolder then
+                        local CFrame_2 = hrp.CFrame
+                        local count = 0
+
+                        for _, child in ipairs(toysFolder:GetChildren()) do
+                            if not _G.VoidKillState then break end
+                            if child:IsA("Model") and table.find(targetMethodWidgets, child.Name) then
+                                local VehicleSeat = child:FindFirstChildOfClass("VehicleSeat")
+
+                                if VehicleSeat and (not VehicleSeat.Occupant or VehicleSeat.Occupant == Humanoid) then
+                                    Humanoid.Sit = true
+                                    task.wait(0.05)
+                                    Humanoid.Sit = false
+
+                                    for _, descendant in ipairs(child:GetDescendants()) do
+                                        if descendant:IsA("BasePart") then
+                                            descendant.Anchored = false
+                                        end
+                                    end
+
+                                    RunService.PostSimulation:Wait()
+                                    pcall(function()
+                                        VehicleSeat.CFrame = hrp.CFrame * CFrame.new(0, -7.5, 0)
+                                    end)
+                                    RunService.PostSimulation:Wait()
+
+                                    for _, descendant in ipairs(child:GetDescendants()) do
+                                        if descendant:IsA("BasePart") then
+                                            descendant.Anchored = true
+                                        end
+                                    end
+
+                                    VehicleSeat:Sit(Humanoid)
+                                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                    RunService.PostSimulation:Wait()
+                                    hrp.CFrame = CFrame_2
+
+                                    local calcVal = tick() + LocalPlayer:GetNetworkPing() + 0.1
+
+                                    while tick() < calcVal
+                                        and Humanoid.SeatPart ~= VehicleSeat
+                                        and not Humanoid.Sit
+                                        and VehicleSeat.Parent
+                                        and LocalPlayer.Character
+                                        and _G.VoidKillState
+                                    do
+                                        RunService.Heartbeat:Wait()
+                                    end
+
+                                    hrp.CFrame = CFrame_2
+                                    RunService.PostSimulation:Wait()
+
+                                    local SeatWeld = hrp:FindFirstChild("SeatWeld")
+                                        or VehicleSeat:FindFirstChild("SeatWeld")
+
+                                    if SeatWeld then
+                                        SeatWeld:Destroy()
+                                    end
+
+                                    RunService.PostSimulation:Wait()
+                                    Humanoid.Sit = false
+                                    Humanoid.Jump = true
+                                    child:PivotTo(cFrame2)
+                                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+
+                                    for _, descendant in pairs(child:GetDescendants()) do
+                                        if descendant:IsA("BasePart") then
+                                            descendant.Position = cFrame2.Position
+                                            descendant.Anchored = false
+                                            descendant.AssemblyLinearVelocity = Vector3.new(0, -1000, 0)
+                                            descendant.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                        end
+                                    end
+
+                                    child:PivotTo(cFrame2)
+                                    RunService.PostSimulation:Wait()
+                                    Humanoid.Sit = false
+                                    Humanoid.Jump = true
+                                    RunService.PostSimulation:Wait()
+                                    hrp.CFrame = CFrame_2
+                                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                    count += 1
+                                    vehicleSeat = VehicleSeat
+                                end
+                            end
+                        end
+
+                        if count > 0 then
+                            task.wait()
+                            hrp.CFrame = CFrame_2
+                            task.defer(function()
+                                hrp.CFrame = CFrame_2
+                            end)
+                        end
+                    end
+
+                    if vehicleSeat then
+                        local now3 = tick()
+                        while true do
+                            task.wait()
+                            if not _G.VoidKillState then break end
+                            if vehicleSeat.Parent then
+                                if tick() - now3 > 0.5 then
+                                    break
+                                end
+                            else
+                                break
+                            end
+                        end
+                        workspace.FallenPartsDestroyHeight = prevDestroyHeight
+                    else
+                        workspace.FallenPartsDestroyHeight = prevDestroyHeight
+                    end
+                end
+                task.wait(0.1)
+            end
+        end)
+    end,
+})
 
 		v21:AddSlider("HeightNK", {
 			Text = "Kick Height",
@@ -38222,35 +38619,7 @@ end)
 			end,
 		})
 
-		v22:AddButton({
-			Text = "Fix Gucci Remover",
-			Tooltip = "Fixes Remove Gucci bugs if it's not working",
-			Func = function()
-				for k in tbl7.SelectedPlayers, nil, nil do
-					local v23, v24 = tbl12.GetInventory(k)
-
-					if v23 then
-						for _, v25 in v23:GetChildren() do
-							local vehicleSeat = v25:FindFirstChildWhichIsA("VehicleSeat") or v25:FindFirstChildWhichIsA("Seat")
-
-							if vehicleSeat then
-								tbl12.ResetGucciSeat(vehicleSeat)
-							end
-						end
-
-						if v24 then
-							for _, v25 in v24:GetChildren() do
-								local vehicleSeat = v25:FindFirstChildWhichIsA("VehicleSeat") or v25:FindFirstChildWhichIsA("Seat")
-
-								if vehicleSeat then
-									tbl12.ResetGucciSeat(vehicleSeat)
-								end
-							end
-						end
-					end
-				end
-			end,
-		})
+		
 	end
 
 	do
