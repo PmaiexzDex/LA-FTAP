@@ -22605,7 +22605,7 @@ end
 																				bodyPosition.D = 200
 																				bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 																				random = math.random
-																				bodyPosition.Position = Vector3.new(math.random(-1e20, 1e20), 1e20, random(-1e20, 1e20))
+																				bodyPosition.Position =Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
 																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
@@ -22785,7 +22785,7 @@ end
 																				bodyPosition.D = 200
 																				bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 																				random = math.random
-																				bodyPosition.Position = Vector3.new(math.random(-1e20, 1e20), 1e20, random(-1e20, 1e20))
+																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
 																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
@@ -22988,7 +22988,7 @@ end
 																				bodyPosition.D = 200
 																				bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 																				random = math.random
-																				bodyPosition.Position = Vector3.new(math.random(-1e20, 1e20), 1e20, random(-1e20, 1e20))
+																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
 																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
@@ -23168,7 +23168,7 @@ end
 																				bodyPosition.D = 200
 																				bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 																				random = math.random
-																				bodyPosition.Position = Vector3.new(math.random(-1e20, 1e20), 1e20, random(-1e20, 1e20))
+																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
 																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
@@ -23364,7 +23364,7 @@ end
 																				bodyPosition.D = 200
 																				bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 																				random = math.random
-																				bodyPosition.Position = Vector3.new(math.random(-1e20, 1e20), 1e20, random(-1e20, 1e20))
+																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
 																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
@@ -23544,7 +23544,7 @@ end
 																				bodyPosition.D = 200
 																				bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 																				random = math.random
-																				bodyPosition.Position = Vector3.new(math.random(-1e20, 1e20), 1e20, random(-1e20, 1e20))
+																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
 																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
@@ -23738,7 +23738,7 @@ end
 															bodyPosition.D = 200
 															bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 															random = math.random
-															bodyPosition.Position = Vector3.new(math.random(-1e20, 1e20), 1e20, random(-1e20, 1e20))
+															bodyPosition.Position = VVector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 															v27.BP = bodyPosition
 															vehicle.Name = "GucciRSC"
 															bodyPosition.Parent = root
@@ -30721,53 +30721,86 @@ end
 			}
 		end
 
-		tbl14.Sit = function()
-			local v22, v23, v24 = tbl12.Char()
-			local flag12 = v24 and v24.Health > 0 and v23
+		local sitBusy = false
 
-			if flag12 then
-				flag12 = not (parent or v24.Sit and v24.SeatPart or tbl8.GucciAntiGrab)
-			end
+local sitBusy = false
 
-			if not flag12 then
-				return
-			end
-			local creatureBlobman = v17:FindFirstChild("CreatureBlobman")
-			local vehicleSeat = creatureBlobman and creatureBlobman:FindFirstChild("VehicleSeat")
-			local flag13 = vehicleSeat and (vehicleSeat.Occupant == nil or vehicleSeat.Occupant == v24)
+tbl14.Sit = function()
+    if sitBusy then return end
 
-			if vehicleSeat and not flag13 then
-				tbl12.DestroyToy(creatureBlobman)
-			end
+    local _, hrp, humanoid = tbl12.Char()
+    if not (humanoid and hrp and humanoid.Health > 0) then return end
+    if parent then return end -- นั่ง Blobman อยู่แล้ว
 
-			if not (flag13 and creatureBlobman) then
-				creatureBlobman = tbl12.SpawnToy("CreatureBlobman")
-			end
+    sitBusy = true
 
-			if not (flag13 and vehicleSeat) then
-				vehicleSeat = creatureBlobman and creatureBlobman:WaitForChild("VehicleSeat", 0.5)
-			end
+    local ok, err = pcall(function()
+        local returnCFrame = hrp.CFrame
 
-			if not vehicleSeat then
-				tbl12.DestroyToy(creatureBlobman)
-				return
-			end
-			local cFrame2 = v23.CFrame
-			local now3 = tick()
+        local function alive()
+            return not flag11 and humanoid.Parent ~= nil and humanoid.Health > 0 and hrp.Parent ~= nil
+        end
 
-			while true do
-				vehicleSeat:Sit(v24)
-				task.wait()
-				if not (parent or tick() - now3 > 0.1) then
-					continue
-				end
-				break
-			end
+        -- หา Blobman ที่ว่างจริง และไม่ใช่ของ Gucci (ที่ถูกจองไว้)
+        local function findFree()
+            for _, m in ipairs(v17:GetChildren()) do
+                if m.Name == "CreatureBlobman" and not tbl7.ToyAuraReserved[m] then
+                    local s = m:FindFirstChild("VehicleSeat")
+                    if s and (s.Occupant == nil or s.Occupant == humanoid) then
+                        return m, s
+                    end
+                end
+            end
+        end
 
-			if parent then
-				tbl12.Teleport(v23, cFrame2)
-			end
-		end
+        for attempt = 1, 4 do
+            if not alive() then break end
+            print("[Sit] attempt", attempt, "gucci =", tbl8.GucciAntiGrab)
+
+            local blobman, seat = findFree()
+            local spawnedToy = nil
+
+            if not seat then
+                blobman = tbl12.SpawnToy("CreatureBlobman")
+                spawnedToy = blobman
+                seat = blobman and blobman:WaitForChild("VehicleSeat", 3)
+                print("[Sit] spawn ->", blobman, seat)
+            end
+
+            if not seat then
+                -- ลบเฉพาะที่เราสปอว์นเอง
+                if spawnedToy then tbl12.DestroyToy(spawnedToy) end
+                task.wait(0.3)
+                continue
+            end
+
+            local startTime = os.clock()
+            local seated = false
+            while os.clock() - startTime < 0.4 do
+                if not alive() then break end
+                seat:Sit(humanoid)
+                task.wait()
+                if parent or humanoid.SeatPart == seat then
+                    seated = true
+                    break
+                end
+            end
+
+            if seated and alive() then
+                print("[Sit] นั่งสำเร็จ")
+                tbl12.Teleport(hrp, returnCFrame)
+                return
+            end
+
+            if spawnedToy then tbl12.DestroyToy(spawnedToy) end
+            task.wait(0.1)
+        end
+        print("[Sit] นั่งไม่สำเร็จ")
+    end)
+
+    sitBusy = false
+    if not ok then warn("[Sit] error:", err) end
+end
 
 		tbl14.Grab = function(arg, arg2)
 			if not parent then
@@ -34145,526 +34178,219 @@ Escape Timer: %*]]
 		end)
 
 		do
-			local function fn21()
-				local n36 = os.clock() + 0.35
-
-				repeat
-					local v22 = tbl12.DetectPCLD(localPlayer)
-					if v22 and v22.Parent and not tbl12.IsWaitingPCLD(v22) then
-						return v22
-					end
-					task.wait(0.05)
-				until flag11 or not tbl8.AntiKick or os.clock() >= n36
-			end
-
-			local function fn22(arg)
-				local NinjaShuriken = tbl12.SpawnToy("NinjaShuriken", arg.CFrame + Vector3.new(0, 15, 0), 3, true)
-				local stickyPart = NinjaShuriken and NinjaShuriken:WaitForChild("StickyPart", 1.5)
-				local stickyWeld = stickyPart and stickyPart:WaitForChild("StickyWeld", 1.5)
-				if stickyPart and stickyWeld and tbl12.SNO(stickyPart) then
-					return NinjaShuriken, stickyPart, stickyWeld
-				end
-				tbl12.DestroyToy(NinjaShuriken)
-			end
-
-			task.spawn(function()
-				while task.wait(0.03) do
-					if flag11 then
-						return
-					end
-
-					if not tbl8.AntiKick then
-						if v18 then
-							tbl12.DestroyToy(v18)
-							v18 = nil
-						end
-
-						if not tbl12.WaitForRuntimeToggle("AntiKick") then
-							return
-						end
-					end
-
-					local antiKickSettings = tbl7.AntiKickSettings
-					local v22, v23, v24 = tbl12.Char()
-					local ragdollTouchedHitbox = v23 and v23:FindFirstChild("RagdollTouchedHitbox")
-
-					if v23 and v24 and ragdollTouchedHitbox and v24.Health > 0 then
-						if localPlayer.InPlot.Value then
-							while true do
-								task.wait()
-								if not (not localPlayer.InPlot.Value or localPlayer.InOwnedPlot.Value) then
-									continue
-								end
-								break
-							end
-						end
-
-						if tbl9.AKType == "Shuriken" then
-							local parent2, shurHighlight, highlight2, antiKick, forcefieldChar, transparency, isMeshPart
-
-							if not (v18 and v18.Name == "ShurikenRSC" and v18:FindFirstChild("StickyPart") and v18.StickyPart:FindFirstChild("StickyWeld") and v18.StickyPart.StickyWeld.Part1 == ragdollTouchedHitbox) then
-								local stickyPart = nil
-								local stickyWeld, now3, flag12, flag13
-
-								if not v18 or not v18.Parent then
-									tbl12.DestroyToy(v18)
-									v18 = nil
-									local v25 = fn21()
-									stickyWeld = nil
-
-									if v25 then
-										local v26
-										v26, stickyPart, stickyWeld = fn22(v25)
-										v18 = v26
-									end
-
-									if not v18 then
-										local v26
-										v26, stickyPart, stickyWeld = fn22(v23)
-										v18 = v26
-
-										if v18 then
-											v18.Name = "ShurikenRSC"
-
-											task.spawn(function()
-												local touchInterest = stickyPart:WaitForChild("TouchInterest", 2.5)
-
-												if touchInterest then
-													touchInterest:Destroy()
-												end
-											end)
-
-											tbl11.StickyPartEvent:FireServer(stickyPart, ragdollTouchedHitbox, CFrame.new(0, -0.3, 0) * CFrame.Angles(1.5707963267948966, 0, 0))
-											now3 = tick()
-
-											while true do
-												fn20()
-												flag12 = stickyWeld.Part1 == ragdollTouchedHitbox or not stickyWeld.Parent or not ragdollTouchedHitbox.Parent or not v24.Parent
-												flag13 = flag12 or v24.Health == 0 or tick() - now3 > 0.5
-												if not flag13 then
-													continue
-												end
-												break
-											end
-
-											parent2 = v18 and v18.Parent
-
-											if parent2 then
-												if not tbl8.AntiKick then
-													tbl12.DestroyToy(v18)
-													v18 = nil
-												else
-													shurHighlight = v18:FindFirstChild("ShurHighlight")
-
-													if not shurHighlight then
-														shurHighlight = Instance.new("Highlight")
-														shurHighlight.Name = "ShurHighlight"
-														shurHighlight.Adornee = v18
-														shurHighlight.Parent = v18
-													end
-
-													if shurHighlight.Enabled ~= antiKickSettings.Highlight then
-														shurHighlight.Enabled = antiKickSettings.Highlight
-													end
-
-													if shurHighlight.FillColor ~= antiKickSettings.HighlightFill then
-														shurHighlight.FillColor = antiKickSettings.HighlightFill
-													end
-
-													if shurHighlight.OutlineColor ~= antiKickSettings.HighlightOutl then
-														shurHighlight.OutlineColor = antiKickSettings.HighlightOutl
-													end
-
-													if shurHighlight.FillTransparency ~= antiKickSettings.HighlightFT then
-														shurHighlight.FillTransparency = antiKickSettings.HighlightFT
-													end
-
-													if shurHighlight.OutlineTransparency ~= antiKickSettings.HighlightOT then
-														shurHighlight.OutlineTransparency = antiKickSettings.HighlightOT
-													end
-
-													highlight2 = antiKickSettings.Highlight
-
-													if highlight2 then
-														antiKick = highlight2
-													else
-														forcefieldChar = tbl8.ForcefieldChar
-														antiKick = forcefieldChar and tbl7.CharacterHighlightAffects["Anti Kick"]
-													end
-
-													if antiKick then
-														transparency = 0
-													else
-														transparency = antiKickSettings.Transparency
-													end
-
-													for _, child in ipairs(v18:GetChildren()) do
-														if child:IsA("BasePart") then
-															if tbl12.ApplyCharacterHighlightPart then
-																tbl12.ApplyCharacterHighlightPart(child, "Anti Kick")
-															end
-
-															isMeshPart = child.Transparency ~= transparency and (child:IsA("MeshPart") or child.Name == "Part")
-
-															if isMeshPart then
-																child.Transparency = transparency
-															end
-
-															if child.CanCollide then
-																child.CanCollide = false
-															end
-
-															if child.CanQuery then
-																child.CanQuery = false
-															end
-														end
-													end
-												end
-											end
-										end
-									elseif v18 then
-										v18.Name = "ShurikenRSC"
-
-										task.spawn(function()
-											local touchInterest = stickyPart:WaitForChild("TouchInterest", 2.5)
-
-											if touchInterest then
-												touchInterest:Destroy()
-											end
-										end)
-
-										tbl11.StickyPartEvent:FireServer(stickyPart, ragdollTouchedHitbox, CFrame.new(0, -0.3, 0) * CFrame.Angles(1.5707963267948966, 0, 0))
-										now3 = tick()
-
-										while true do
-											fn20()
-											flag12 = stickyWeld.Part1 == ragdollTouchedHitbox or not stickyWeld.Parent or not ragdollTouchedHitbox.Parent or not v24.Parent
-											flag13 = flag12 or v24.Health == 0 or tick() - now3 > 0.5
-											if not flag13 then
-												continue
-											end
-											break
-										end
-
-										parent2 = v18 and v18.Parent
-
-										if parent2 then
-											if not tbl8.AntiKick then
-												tbl12.DestroyToy(v18)
-												v18 = nil
-											else
-												shurHighlight = v18:FindFirstChild("ShurHighlight")
-
-												if not shurHighlight then
-													shurHighlight = Instance.new("Highlight")
-													shurHighlight.Name = "ShurHighlight"
-													shurHighlight.Adornee = v18
-													shurHighlight.Parent = v18
-												end
-
-												if shurHighlight.Enabled ~= antiKickSettings.Highlight then
-													shurHighlight.Enabled = antiKickSettings.Highlight
-												end
-
-												if shurHighlight.FillColor ~= antiKickSettings.HighlightFill then
-													shurHighlight.FillColor = antiKickSettings.HighlightFill
-												end
-
-												if shurHighlight.OutlineColor ~= antiKickSettings.HighlightOutl then
-													shurHighlight.OutlineColor = antiKickSettings.HighlightOutl
-												end
-
-												if shurHighlight.FillTransparency ~= antiKickSettings.HighlightFT then
-													shurHighlight.FillTransparency = antiKickSettings.HighlightFT
-												end
-
-												if shurHighlight.OutlineTransparency ~= antiKickSettings.HighlightOT then
-													shurHighlight.OutlineTransparency = antiKickSettings.HighlightOT
-												end
-
-												highlight2 = antiKickSettings.Highlight
-
-												if highlight2 then
-													antiKick = highlight2
-												else
-													forcefieldChar = tbl8.ForcefieldChar
-													antiKick = forcefieldChar and tbl7.CharacterHighlightAffects["Anti Kick"]
-												end
-
-												if antiKick then
-													transparency = 0
-												else
-													transparency = antiKickSettings.Transparency
-												end
-
-												for _, child in ipairs(v18:GetChildren()) do
-													if child:IsA("BasePart") then
-														if tbl12.ApplyCharacterHighlightPart then
-															tbl12.ApplyCharacterHighlightPart(child, "Anti Kick")
-														end
-
-														isMeshPart = child.Transparency ~= transparency and (child:IsA("MeshPart") or child.Name == "Part")
-
-														if isMeshPart then
-															child.Transparency = transparency
-														end
-
-														if child.CanCollide then
-															child.CanCollide = false
-														end
-
-														if child.CanQuery then
-															child.CanQuery = false
-														end
-													end
-												end
-											end
-										end
-									end
-								else
-									stickyPart = v18:WaitForChild("StickyPart", 1.5)
-									stickyWeld = stickyPart and stickyPart:WaitForChild("StickyWeld", 1.5)
-
-									if not (stickyPart and stickyWeld) or not tbl12.SNO(stickyPart) then
-										tbl12.DestroyToy(v18)
-										v18 = nil
-									elseif v18 then
-										v18.Name = "ShurikenRSC"
-
-										task.spawn(function()
-											local touchInterest = stickyPart:WaitForChild("TouchInterest", 2.5)
-
-											if touchInterest then
-												touchInterest:Destroy()
-											end
-										end)
-
-										tbl11.StickyPartEvent:FireServer(stickyPart, ragdollTouchedHitbox, CFrame.new(0, -0.3, 0) * CFrame.Angles(1.5707963267948966, 0, 0))
-										now3 = tick()
-
-										while true do
-											fn20()
-											flag12 = stickyWeld.Part1 == ragdollTouchedHitbox or not stickyWeld.Parent or not ragdollTouchedHitbox.Parent or not v24.Parent
-											flag13 = flag12 or v24.Health == 0 or tick() - now3 > 0.5
-											if not flag13 then
-												continue
-											end
-											break
-										end
-
-										parent2 = v18 and v18.Parent
-
-										if parent2 then
-											if not tbl8.AntiKick then
-												tbl12.DestroyToy(v18)
-												v18 = nil
-											else
-												shurHighlight = v18:FindFirstChild("ShurHighlight")
-
-												if not shurHighlight then
-													shurHighlight = Instance.new("Highlight")
-													shurHighlight.Name = "ShurHighlight"
-													shurHighlight.Adornee = v18
-													shurHighlight.Parent = v18
-												end
-
-												if shurHighlight.Enabled ~= antiKickSettings.Highlight then
-													shurHighlight.Enabled = antiKickSettings.Highlight
-												end
-
-												if shurHighlight.FillColor ~= antiKickSettings.HighlightFill then
-													shurHighlight.FillColor = antiKickSettings.HighlightFill
-												end
-
-												if shurHighlight.OutlineColor ~= antiKickSettings.HighlightOutl then
-													shurHighlight.OutlineColor = antiKickSettings.HighlightOutl
-												end
-
-												if shurHighlight.FillTransparency ~= antiKickSettings.HighlightFT then
-													shurHighlight.FillTransparency = antiKickSettings.HighlightFT
-												end
-
-												if shurHighlight.OutlineTransparency ~= antiKickSettings.HighlightOT then
-													shurHighlight.OutlineTransparency = antiKickSettings.HighlightOT
-												end
-
-												highlight2 = antiKickSettings.Highlight
-
-												if highlight2 then
-													antiKick = highlight2
-												else
-													forcefieldChar = tbl8.ForcefieldChar
-													antiKick = forcefieldChar and tbl7.CharacterHighlightAffects["Anti Kick"]
-												end
-
-												if antiKick then
-													transparency = 0
-												else
-													transparency = antiKickSettings.Transparency
-												end
-
-												for _, child in ipairs(v18:GetChildren()) do
-													if child:IsA("BasePart") then
-														if tbl12.ApplyCharacterHighlightPart then
-															tbl12.ApplyCharacterHighlightPart(child, "Anti Kick")
-														end
-
-														isMeshPart = child.Transparency ~= transparency and (child:IsA("MeshPart") or child.Name == "Part")
-
-														if isMeshPart then
-															child.Transparency = transparency
-														end
-
-														if child.CanCollide then
-															child.CanCollide = false
-														end
-
-														if child.CanQuery then
-															child.CanQuery = false
-														end
-													end
-												end
-											end
-										end
-									end
-								end
-							else
-								parent2 = v18 and v18.Parent
-
-								if parent2 then
-									if not tbl8.AntiKick then
-										tbl12.DestroyToy(v18)
-										v18 = nil
-									else
-										shurHighlight = v18:FindFirstChild("ShurHighlight")
-
-										if not shurHighlight then
-											shurHighlight = Instance.new("Highlight")
-											shurHighlight.Name = "ShurHighlight"
-											shurHighlight.Adornee = v18
-											shurHighlight.Parent = v18
-										end
-
-										if shurHighlight.Enabled ~= antiKickSettings.Highlight then
-											shurHighlight.Enabled = antiKickSettings.Highlight
-										end
-
-										if shurHighlight.FillColor ~= antiKickSettings.HighlightFill then
-											shurHighlight.FillColor = antiKickSettings.HighlightFill
-										end
-
-										if shurHighlight.OutlineColor ~= antiKickSettings.HighlightOutl then
-											shurHighlight.OutlineColor = antiKickSettings.HighlightOutl
-										end
-
-										if shurHighlight.FillTransparency ~= antiKickSettings.HighlightFT then
-											shurHighlight.FillTransparency = antiKickSettings.HighlightFT
-										end
-
-										if shurHighlight.OutlineTransparency ~= antiKickSettings.HighlightOT then
-											shurHighlight.OutlineTransparency = antiKickSettings.HighlightOT
-										end
-
-										highlight2 = antiKickSettings.Highlight
-
-										if highlight2 then
-											antiKick = highlight2
-										else
-											forcefieldChar = tbl8.ForcefieldChar
-											antiKick = forcefieldChar and tbl7.CharacterHighlightAffects["Anti Kick"]
-										end
-
-										if antiKick then
-											transparency = 0
-										else
-											transparency = antiKickSettings.Transparency
-										end
-
-										for _, child in ipairs(v18:GetChildren()) do
-											if child:IsA("BasePart") then
-												if tbl12.ApplyCharacterHighlightPart then
-													tbl12.ApplyCharacterHighlightPart(child, "Anti Kick")
-												end
-
-												isMeshPart = child.Transparency ~= transparency and (child:IsA("MeshPart") or child.Name == "Part")
-
-												if isMeshPart then
-													child.Transparency = transparency
-												end
-
-												if child.CanCollide then
-													child.CanCollide = false
-												end
-
-												if child.CanQuery then
-													child.CanQuery = false
-												end
-											end
-										end
-									end
-								end
-							end
-						end
-					end
-				end
-			end)
-		end
-
-		task.spawn(function()
-			while task.wait(0.2) do
-				if flag11 then
-					return
-				end
-
-				if not tbl8.AntiKick2 and not tbl12.WaitForRuntimeToggle("AntiKick2") then
-					return
-				end
-				local v22, v23, v24 = tbl12.Char()
-
-				if v24 then
-					if not v24:GetAttribute("BrokenPCLD") or v24.Health <= 0 then
-						local result = nil
-
-						if v24.Health > 0 then
-							fn18("Starting PCLD Break...", "PCLD Breaker")
-
-							task.spawn(function()
-								repeat
-									v24.Health = 0
-									v24:ChangeState(Enum.HumanoidStateType.Dead)
-									fn20()
-								until result
-							end)
-						else
-							fn18("Detected death, breaking PCLD again...", "PCLD Breaker")
-						end
-
-						result = localPlayer.CharacterAdded:Wait()
-						local humanoid = result:WaitForChild("Humanoid", 5)
-
-						if humanoid then
-							local result2 = nil
-
-							task.spawn(function()
-								repeat
-									humanoid.Health = 0
-									humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-									fn20()
-								until result2
-							end)
-
-							result2 = localPlayer.CharacterAdded:Wait()
-							local humanoid2 = result2:WaitForChild("Humanoid", 5)
-
-							if humanoid2 then
-								humanoid2:SetAttribute("BrokenPCLD", true)
-								fn18("Done!", "PCLD Breaker")
-							end
-						end
-					end
-				end
-			end
-		end)
+    local function fn21()
+        local n36 = os.clock() + 0.35
+
+        repeat
+            local v22 = tbl12.DetectPCLD(localPlayer)
+            if v22 and v22.Parent and not tbl12.IsWaitingPCLD(v22) then
+                return v22
+            end
+            task.wait(0.05)
+        until flag11 or not tbl8.AntiKick or os.clock() >= n36
+    end
+
+    local function fn22(arg)
+        local NinjaShuriken = tbl12.SpawnToy("NinjaShuriken", arg.CFrame + Vector3.new(0, 15, 0), 3, true)
+        local stickyPart = NinjaShuriken and NinjaShuriken:WaitForChild("StickyPart", 1.5)
+        local stickyWeld = stickyPart and stickyPart:WaitForChild("StickyWeld", 1.5)
+        if stickyPart and stickyWeld and tbl12.SNO(stickyPart) then
+            return NinjaShuriken, stickyPart, stickyWeld
+        end
+        tbl12.DestroyToy(NinjaShuriken)
+    end
+
+    task.spawn(function()
+        -- v18s เก็บ ShurikenRSC ได้สูงสุด 2 อัน (slot 1 และ slot 2)
+        -- แทนที่ v18 เดิม (ตัวแปรเดี่ยว)
+        local v18s = {}
+
+        -- ฟังก์ชันช่วย: ใส่ Highlight + ปรับ Transparency ให้ Shuriken 1 อัน
+        local function applyShurikenVisuals(shuriken, antiKickSettings)
+            if not shuriken or not shuriken.Parent then return end
+            if not tbl8.AntiKick then
+                tbl12.DestroyToy(shuriken)
+                return
+            end
+
+            local shurHighlight = shuriken:FindFirstChild("ShurHighlight")
+            if not shurHighlight then
+                shurHighlight = Instance.new("Highlight")
+                shurHighlight.Name = "ShurHighlight"
+                shurHighlight.Adornee = shuriken
+                shurHighlight.Parent = shuriken
+            end
+
+            if shurHighlight.Enabled ~= antiKickSettings.Highlight then
+                shurHighlight.Enabled = antiKickSettings.Highlight
+            end
+            if shurHighlight.FillColor ~= antiKickSettings.HighlightFill then
+                shurHighlight.FillColor = antiKickSettings.HighlightFill
+            end
+            if shurHighlight.OutlineColor ~= antiKickSettings.HighlightOutl then
+                shurHighlight.OutlineColor = antiKickSettings.HighlightOutl
+            end
+            if shurHighlight.FillTransparency ~= antiKickSettings.HighlightFT then
+                shurHighlight.FillTransparency = antiKickSettings.HighlightFT
+            end
+            if shurHighlight.OutlineTransparency ~= antiKickSettings.HighlightOT then
+                shurHighlight.OutlineTransparency = antiKickSettings.HighlightOT
+            end
+
+            local highlight2 = antiKickSettings.Highlight
+            local antiKick
+            if highlight2 then
+                antiKick = highlight2
+            else
+                local forcefieldChar = tbl8.ForcefieldChar
+                antiKick = forcefieldChar and tbl7.CharacterHighlightAffects["Anti Kick"]
+            end
+
+            local transparency
+            if antiKick then
+                transparency = 0
+            else
+                transparency = antiKickSettings.Transparency
+            end
+
+            for _, child in ipairs(shuriken:GetChildren()) do
+                if child:IsA("BasePart") then
+                    if tbl12.ApplyCharacterHighlightPart then
+                        tbl12.ApplyCharacterHighlightPart(child, "Anti Kick")
+                    end
+
+                    local isMeshPart = child.Transparency ~= transparency and (child:IsA("MeshPart") or child.Name == "Part")
+                    if isMeshPart then
+                        child.Transparency = transparency
+                    end
+
+                    if child.CanCollide then child.CanCollide = false end
+                    if child.CanQuery then child.CanQuery = false end
+                end
+            end
+        end
+
+        -- ฟังก์ชันช่วย: ตั้งชื่อ, ยิง StickyPartEvent, แล้วรอ weld ให้ติด
+        local function setupShuriken(shuriken, stickyPart, stickyWeld, ragdollTouchedHitbox, v24)
+            shuriken.Name = "ShurikenRSC"
+
+            task.spawn(function()
+                local touchInterest = stickyPart:WaitForChild("TouchInterest", 2.5)
+                if touchInterest then
+                    touchInterest:Destroy()
+                end
+            end)
+
+            tbl11.StickyPartEvent:FireServer(stickyPart, ragdollTouchedHitbox, CFrame.new(0, -0.3, 0) * CFrame.Angles(1.5707963267948966, 0, 0))
+            local now3 = tick()
+
+            while true do
+                fn20()
+                local flag12 = stickyWeld.Part1 == ragdollTouchedHitbox or not stickyWeld.Parent or not ragdollTouchedHitbox.Parent or not v24.Parent
+                local flag13 = flag12 or v24.Health == 0 or tick() - now3 > 0.5
+                if not flag13 then
+                    continue
+                end
+                break
+            end
+        end
+
+        while task.wait(0.03) do
+            if flag11 then
+                return
+            end
+
+            if not tbl8.AntiKick then
+                for i = 1, 2 do
+                    if v18s[i] then
+                        tbl12.DestroyToy(v18s[i])
+                        v18s[i] = nil
+                    end
+                end
+
+                if not tbl12.WaitForRuntimeToggle("AntiKick") then
+                    return
+                end
+            end
+
+            local antiKickSettings = tbl7.AntiKickSettings
+            local v22, v23, v24 = tbl12.Char()
+            local ragdollTouchedHitbox = v23 and v23:FindFirstChild("RagdollTouchedHitbox")
+
+            if v23 and v24 and ragdollTouchedHitbox and v24.Health > 0 then
+                if localPlayer.InPlot.Value then
+                    while true do
+                        task.wait()
+                        if not (not localPlayer.InPlot.Value or localPlayer.InOwnedPlot.Value) then
+                            continue
+                        end
+                        break
+                    end
+                end
+
+                if tbl9.AKType == "Shuriken" then
+                    for slot = 1, 2 do
+                        local v18 = v18s[slot]
+                        local isValidAttached = v18
+                            and v18.Name == "ShurikenRSC"
+                            and v18:FindFirstChild("StickyPart")
+                            and v18.StickyPart:FindFirstChild("StickyWeld")
+                            and v18.StickyPart.StickyWeld.Part1 == ragdollTouchedHitbox
+
+                        if not isValidAttached then
+                            if not v18 or not v18.Parent then
+                                -- สร้าง Shuriken ใหม่สำหรับ slot นี้
+                                tbl12.DestroyToy(v18)
+                                v18s[slot] = nil
+
+                                local v25 = fn21()
+                                local stickyPart, stickyWeld
+
+                                if v25 then
+                                    local v26
+                                    v26, stickyPart, stickyWeld = fn22(v25)
+                                    v18s[slot] = v26
+                                end
+
+                                if not v18s[slot] then
+                                    local v26
+                                    v26, stickyPart, stickyWeld = fn22(v23)
+                                    v18s[slot] = v26
+                                end
+
+                                if v18s[slot] then
+                                    setupShuriken(v18s[slot], stickyPart, stickyWeld, ragdollTouchedHitbox, v24)
+                                end
+                            else
+                                -- Shuriken มีโครงสร้าง แต่ยังไม่ติด weld
+                                local stickyPart = v18:WaitForChild("StickyPart", 1.5)
+                                local stickyWeld = stickyPart and stickyPart:WaitForChild("StickyWeld", 1.5)
+
+                                if not (stickyPart and stickyWeld) or not tbl12.SNO(stickyPart) then
+                                    tbl12.DestroyToy(v18)
+                                    v18s[slot] = nil
+                                else
+                                    setupShuriken(v18, stickyPart, stickyWeld, ragdollTouchedHitbox, v24)
+                                end
+                            end
+                        end
+
+                        -- ใส่ Highlight / Transparency ให้ Shuriken ของ slot นี้
+                        local currentShuriken = v18s[slot]
+                        if currentShuriken and currentShuriken.Parent then
+                            if not tbl8.AntiKick then
+                                tbl12.DestroyToy(currentShuriken)
+                                v18s[slot] = nil
+                            else
+                                applyShurikenVisuals(currentShuriken, antiKickSettings)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
 
 		do
 			local flag12 = false
@@ -34744,8 +34470,6 @@ Escape Timer: %*]]
 		end)
 
 		task.spawn(function()
-    task.wait(2)
-
     while true do
         task.wait(0.03)
 
@@ -34754,55 +34478,73 @@ Escape Timer: %*]]
             return
         end
 
+        local connection
+        local gucciWasOn = false
+
         local ok, err = pcall(function()
-            local rightLeg, v22, v23 = tbl12.Char()
-            rightLeg = rightLeg and rightLeg:FindFirstChild("Right Leg")
-            local gucciAntiGrab = tbl8.GucciAntiGrab
+            local char, hrp, humanoid = tbl12.Char()
+            local rightLeg = char and char:FindFirstChild("Right Leg")
 
-            if rightLeg and v22 and v23 and v23.Health ~= 0 and tbl12.IsNetworkOwner(v22) then
-                if gucciAntiGrab then
-                    toggles.GucciAntiGrab:SetValue(false)
-                    task.wait(0.25)
+            -- ตายแล้ว: รอตัวละครใหม่
+            if humanoid and humanoid.Health <= 0 then
+                local newChar = localPlayer.CharacterAdded:Wait()
+                if newChar then
+                    task.wait(0.5)
                 end
+                return
+            end
 
-                v23.Sit = false
-                v23.HipHeight = 2
-                tbl12.BreakLimb(localPlayer, "Legs")
+            if not (rightLeg and hrp and humanoid) then return end
+            if humanoid.Health <= 0 or not tbl12.IsNetworkOwner(hrp) then return end
 
-                local connection
-                connection = v23:GetPropertyChangedSignal("HipHeight"):Connect(function()
-                    if not tbl8.AntiBanana then
-                        return connection:Disconnect()
+            -- ปิด GucciAntiGrab ชั่วคราว
+            if tbl8.GucciAntiGrab then
+                gucciWasOn = true
+                toggles.GucciAntiGrab:SetValue(false)
+                task.wait(0.25)
+
+                -- เช็คสถานะอีกครั้งหลังรอ
+                if flag11 or not rightLeg.Parent or humanoid.Health <= 0 then
+                    return
+                end
+            end
+
+            humanoid.Sit = false
+            humanoid.HipHeight = 2
+            tbl12.BreakLimb(localPlayer, "Legs")
+
+            connection = humanoid:GetPropertyChangedSignal("HipHeight"):Connect(function()
+                if not tbl8.AntiBanana then
+                    if connection then
+                        connection:Disconnect()
+                        connection = nil
                     end
-                    if v23.Parent and v23.Health ~= 0 then
-                        v23.HipHeight = 2
-                    end
-                end)
-
-                -- 🔧 inner loop: เช็ค flag11 / toggle ด้วย
-                local deadline = tick() + 0.75
-                while tick() < deadline do
-                    task.wait()
-                    if flag11 then break end
-                    if not tbl8.AntiBanana and not tbl12.WaitForRuntimeToggle("AntiBanana") then break end
-                    if not rightLeg.Parent or v23.Health == 0 then break end
+                    return
                 end
-
-                -- 🔧 หัวใจสำคัญ: disconnect หลังจบ inner loop เสมอ
-                if connection then
-                    pcall(function() connection:Disconnect() end)
-                    connection = nil
+                if humanoid.Parent and humanoid.Health > 0 and humanoid.HipHeight ~= 2 then
+                    humanoid.HipHeight = 2
                 end
+            end)
 
-                if gucciAntiGrab then
-                    toggles.GucciAntiGrab:SetValue(true)
-                end
-
-            elseif v23 and v23.Health == 0 then
-                localPlayer.CharacterAdded:Wait()
-                task.wait(0.5)
+            -- inner loop: ถือสถานะไว้ 0.75 วินาที
+            local deadline = tick() + 0.75
+            while tick() < deadline do
+                task.wait()
+                if flag11 then break end
+                if not tbl8.AntiBanana and not tbl12.WaitForRuntimeToggle("AntiBanana") then break end
+                if not rightLeg.Parent or humanoid.Health <= 0 then break end
             end
         end)
+
+        -- cleanup: ทำเสมอ ไม่ว่า pcall จะสำเร็จหรือ error
+        if connection then
+            pcall(function() connection:Disconnect() end)
+            connection = nil
+        end
+
+        if gucciWasOn then
+            pcall(function() toggles.GucciAntiGrab:SetValue(true) end)
+        end
 
         if not ok then
             warn("[AntiBanana] error:", err)
@@ -39141,9 +38883,9 @@ end)
 		fn21("ToysAuraFaceCenter", "Face Center", "FaceCenter")
 		v20:AddDivider("Shape Movement")
 		fn21("AutoMoveTA", "Auto Move", "AutoMove")
-		fn22("AutoMoveSp", "Move Speed", "MoveSpeed", 0.1, 25, 1)
+		fn22("AutoMoveSp", "Move Speed", "MoveSpeed", 0.1, 120, 1)
 		fn21("AutoRotateTA", "Auto Rotate", "AutoRotate")
-		fn22("AutoRotateSp", "Rotate Speed", "RotationSpeed", 0.1, 20, 1)
+		fn22("AutoRotateSp", "Rotate Speed", "RotationSpeed", 0.1, 120, 1)
 		fn21("ToysAuraBob", "Bob", "Bob")
 		fn22("ToysAuraBobHeight", "Bob Height", "BobHeight", 0, 50, 1)
 		fn22("ToysAuraBobSpeed", "Bob Speed", "BobSpeed", 0.1, 12, 1)
