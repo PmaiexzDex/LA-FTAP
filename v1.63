@@ -32617,45 +32617,27 @@ end
                         return
                     end
 
-                    local targetMethods = tbl7.TargetMethods
-                    local v22, v23 = tbl12.Char(arg)
+                   local targetMethods = tbl7.TargetMethods
+                   local v22, v23 = tbl12.Char(arg)
 
-                    if targetMethods["Remove Invisibility"] and v23 then
-                        v23.Massless = false
-                    end
+if targetMethods["Remove Invisibility"] and v23 then
+    v23.Massless = false
+end
 
-                    if targetMethods.Bring then
-                        fn21("Bring", tbl12.BringPlayer)
-                    end
+if targetMethods.Bring then
+    fn21("Bring", tbl12.BringPlayer)
+end
 
-                    local kick = targetMethods.Kick
-                    local flag12
+if flag12 and v22 and v23 then
+    -- เรียก Ragdoll ตรง ๆ แบบ synchronous (เหมือน Blob)
+    pcall(tbl12.Ragdoll, v22)
 
-                    if kick then
-                        local flag13 = arg3 and tbl9.KickServerMethod == "Void"
-
-                        if flag13 then
-                            flag12 = flag13
-                        else
-                            flag12 = not arg3 and not arg2
-                        end
-                    else
-                        flag12 = kick
-                    end
-
-                    if flag12 then
-                        -- [โหดขึ้น] คอมโบก่อนเตะลง Void: ทำให้อ่อน + ล็อค + ปั่นความเร็ว
-                        if v22 and v23 then
-                            pcall(tbl12.Ragdoll, v22)
-                            pcall(tbl12.Grab, v23)
-                            pcall(function()
-                                v23.AssemblyLinearVelocity = Vector3.new(0, 50000, 0)
-                                v23.AssemblyAngularVelocity = Vector3.new(50000, 50000, 50000)
-                            end)
-                        end
-                        fn21("Kick", tbl12.Void)
-                    end
-
+    -- ปั่น
+    pcall(function()
+        v23.AssemblyLinearVelocity  = Vector3.new(0, 50000, 0)
+        v23.AssemblyAngularVelocity = Vector3.new(50000, 50000, 50000)
+    end)
+end
                     if targetMethods.Kill then
                         -- [โหดขึ้น] คอมโบก่อน Kill: ทำให้อ่อน + ปั่นหัว
                         if v22 and v23 then
@@ -35892,7 +35874,7 @@ end)
 
 		v19 = lib:CreateWindow({
 			Title = "<b>LA</b>",
-			Footer = ("<b>Проект LA %* | FTAP</b>"):format("v1.64 data"),
+			Footer = ("<b>Проект LA %* | FTAP</b>"):format("v1.64"),
 			ToggleKeybind = Enum.KeyCode.M,
 			Center = true,
 			AutoShow = true,
@@ -36092,7 +36074,7 @@ end)
 				local floor = math.floor
 				local dataPing = Stats2.Network.ServerStatsItem["Data Ping"]
 				local getValue = dataPing.GetValue
-				setText(v23,("LA %s | %s fps | %s ping"):format("v1.64 data", math.floor(Stats2.Workspace.Heartbeat:GetValue()), floor(getValue(dataPing))))
+				setText(v23,("LA %s | %s fps | %s ping"):format("v1.64", math.floor(Stats2.Workspace.Heartbeat:GetValue()), floor(getValue(dataPing))))
 				task.wait(1)
 			end
 		end)
@@ -36197,7 +36179,7 @@ end)
 		do
 			local Statistics = tbl15.Home:AddRightGroupbox("memory", "chart-no-axes-column")
 			Statistics:AddLabel("CurrentTime", { Text = "time: 00:00", DoesWrap = true })
-			Statistics:AddLabel("VerLabel", { Text = ("script version: <b>%*</b>"):format("v1.64 data"), DoesWrap = true })
+			Statistics:AddLabel("VerLabel", { Text = ("script version: <b>%*</b>"):format("v1.64"), DoesWrap = true })
 			Statistics:AddLabel("TogglesCurrentlyOn", { Text = "Toggles currently enabled: 0", DoesWrap = true })
 			Statistics:AddDivider("Server memory")
 			Statistics:AddLabel("Game name: <b>Fling Things and People</b>")
@@ -38109,13 +38091,32 @@ end)
 			end,
 		})
 
+
 		v21:AddToggle("RagdollNK", {
-			Text = "Loop Ragdoll",
-			Default = true,
-			Callback = function(ragdollInNK)
-				tbl8.RagdollInNK = ragdollInNK
-			end,
-		})
+        Text = "Loop Ragdoll",
+    Default = false,
+    Callback = function(on)
+        tbl8.RagdollInNK = on
+        if not on then return end
+
+        task.spawn(function()
+            while tbl8.RagdollInNK do
+                local ok, targets = pcall(tbl12.GetTargets, false, tbl7.SelectedPlayers)
+
+                if ok and targets then
+                    for _, plr in ipairs(targets) do
+                        local okC, v22, v23 = pcall(tbl12.Char, plr)
+                        if okC and v22 and v23 then
+                            pcall(tbl12.Ragdoll, v22)
+                            pcall(tbl12.Grab, v23)
+                        end
+                    end
+                end
+                task.wait(0.5)
+            end
+        end)
+    end,
+})
 
 		v21:AddToggle("AntiKickRemoverNK", {
 			Text = "Remove Anti-Kick",
@@ -38356,15 +38357,6 @@ end)
 		local v22 = v20:AddDependencyBox()
 		v22:SetupDependencies({ { options.MethodSettingsTargets, "Remove Gucci" } })
 		v22:AddDivider("Remove-Gucci Settings")
-
-		v22:AddToggle("RagdollInRG", {
-			Text = "Break Player? [Inf Ragdoll]",
-			Default = false,
-			Tooltip = "This takes 1.5 seconds, use only if you have time!",
-			Callback = function(ragdollInRG)
-				tbl8.RagdollInRG = ragdollInRG
-			end,
-		})
 
 		
 	end
@@ -44498,7 +44490,7 @@ local Intro = {}
 
 local CONFIG = {
 	Title = "LA",
-	Subtitle = "Проект LA v1.64 data | FTAP",
+	Subtitle = "Проект LA v1.64 | FTAP",
 	Icon = "rbxassetid://126994849272867",
 
 	MinTime = 2.6, -- the animation never ends before this many seconds
