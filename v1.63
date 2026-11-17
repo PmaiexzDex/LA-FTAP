@@ -273,11 +273,11 @@ local Library = {
     DPIScale = 1,
     CornerRadius = 100,
 
-    IsLightTheme = ture,
+    IsLightTheme = false,
     Scheme = {
         BackgroundColor = Color3.fromRGB(15, 15, 15),
         MainColor = Color3.fromRGB(25, 25, 25),
-        AccentColor = Color3.fromRGB(125, 85, 255),
+        AccentColor = Color3.fromRGB(255, 255, 255),
         OutlineColor = Color3.fromRGB(40, 40, 40),
         FontColor = Color3.new(1, 1, 1),
         Font = ResolveFont(Enum.Font.Code),
@@ -4221,7 +4221,7 @@ do
             [Enum.KeyCode.RightControl] = "RCtrl",
 
             [Enum.KeyCode.LeftShift] = "LShift",
-            [Enum.KeyCode.RightShift] = RShift,
+            [Enum.KeyCode.RightShift] = "RShift",
 
             [Enum.KeyCode.Tab] = "Tab",
             [Enum.KeyCode.CapsLock] = "CapsLock",
@@ -21562,56 +21562,77 @@ end
 				end
 
 				tbl12.Ragdoll = function(arg)
-					if not arg or not arg.Parent or tbl7.States.Ragdolling then
-						return
-					end
-					local head = arg:FindFirstChild("Head")
-					local torso = head and arg:FindFirstChild("Torso")
-					local humanoid = torso and arg:FindFirstChild("Humanoid")
-					humanoid = humanoid and humanoid:FindFirstChild("Ragdolled")
+    if not arg or not arg.Parent or tbl7.States.Ragdolling then
+        return
+    end
+    local head = arg:FindFirstChild("Head")
+    local torso = head and arg:FindFirstChild("Torso")
+    local humanoid = torso and arg:FindFirstChild("Humanoid")
+    humanoid = humanoid and humanoid:FindFirstChild("Ragdolled")
 
-					if humanoid and humanoid.Value == false then
-						tbl7.States.Ragdolling = true
-						local ragdollRSC = v17:FindFirstChild("RagdollRSC") or tbl12.SpawnToy("PalletLightBrown")
-						local soundPart = ragdollRSC and ragdollRSC:WaitForChild("SoundPart", 0.5)
-						local main = soundPart and ragdollRSC:WaitForChild("Main", 0.5)
-						if not main or not tbl12.SNO(soundPart) then
-							tbl7.States.Ragdolling = false
-							return tbl12.DestroyToy(ragdollRSC)
-						end
-						ragdollRSC.Name = "RagdollRSC"
+    if humanoid and humanoid.Value == false then
+        tbl7.States.Ragdolling = true
 
-						for _, child in pairs(ragdollRSC:GetChildren()) do
-							if child:IsA("BasePart") then
-								child.CanCollide = false
-							end
-						end
+        local ok, result = pcall(function()                         -- ✅ แก้ #2
+            local ragdollRSC = v17:FindFirstChild("RagdollRSC") or tbl12.SpawnToy("PalletLightBrown")
+            if not ragdollRSC then
+                return false                                        -- ✅ แก้ #3
+            end
+            local soundPart = ragdollRSC:WaitForChild("SoundPart", 0.5)
+            local main = soundPart and ragdollRSC:WaitForChild("Main", 0.5)
+            if not main or not tbl12.SNO(soundPart) then
+                tbl12.DestroyToy(ragdollRSC)
+                return false
+            end
+            ragdollRSC.Name = "RagdollRSC"
 
-						if not main:FindFirstChild("RagdollBP") then
-							local bodyPosition = Instance.new("BodyPosition")
-							bodyPosition.Name = "RagdollBP"
-							bodyPosition.D = 1500
-							bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-							bodyPosition.Position = Vector3.new(0, 100, 0)
-							bodyPosition.Parent = main
-						end
+            for _, child in pairs(ragdollRSC:GetChildren()) do
+                if child:IsA("BasePart") then
+                    child.CanCollide = false
+                end
+            end
 
-						local now3 = tick()
+            local bodyPosition = main:FindFirstChild("RagdollBP")
+            if not bodyPosition then
+                bodyPosition = Instance.new("BodyPosition")
+                bodyPosition.Name = "RagdollBP"
+                bodyPosition.D = 1500
+                bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bodyPosition.Parent = main
+            end
 
-						while true do
-							soundPart.Position = torso.Position
-							soundPart.Velocity = Vector3.new(0, -100, 0)
-							task.wait(0)
-							if not (humanoid.Value or not main.Parent or not arg.Parent or not head:FindFirstChild("PartOwner") or tick() - now3 > 0.5) then
-								continue
-							end
-							break
-						end
+            local now3 = tick()
 
-						tbl7.States.Ragdolling = false
-						return humanoid.Value
-					end
-				end
+            while true do
+                if not torso.Parent or not arg.Parent then
+                    break
+                end
+                soundPart.Position = torso.Position
+                soundPart.Velocity = Vector3.new(0, -100, 0)
+                bodyPosition.Position = torso.Position            -- ✅ แก้ #1
+                task.wait(0)
+                if not (humanoid.Value
+                    or not main.Parent
+                    or not arg.Parent
+                    or not head:FindFirstChild("PartOwner")
+                    or tick() - now3 > 0.5) then
+                    continue
+                end
+                break
+            end
+
+            return humanoid.Value == true                          -- ✅ แก้ #4
+        end)
+
+        tbl7.States.Ragdolling = false                              -- ✅ แก้ #2 (reset เสมอ)
+        if not ok then
+            warn("[Ragdoll] error:", result)
+            return false
+        end
+        return result
+    end
+    return false                                                    -- ✅ แก้ #4
+end
 
 				tbl12.RemoveSticky = function(arg, arg2)
 					if not arg or not arg.Parent then
@@ -23738,7 +23759,7 @@ end
 															bodyPosition.D = 200
 															bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 															random = math.random
-															bodyPosition.Position = VVector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
+															bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 															v27.BP = bodyPosition
 															vehicle.Name = "GucciRSC"
 															bodyPosition.Parent = root
@@ -30964,77 +30985,78 @@ end
 		tbl14.KickServerCooldowns = setmetatable({}, { __mode = "k" })
 
 		tbl14.KickTargets = function(arg, arg2)
-			local v22 = tbl14.GetBlobmanComponents()
-			local v23, v24, v25 = tbl12.Char()
-			if not (v22 and v22.CreatureGrab and v22.CreatureDrop and v22.RightWeld and v24 and v25 and v25.Health > 0) then
-				return
-			end
-			local tbl16 = {}
-			local tbl17 = {}
-			v22.CreatureDrop:FireServer(v22.RightWeld)
+        local v22 = tbl14.GetBlobmanComponents()
+        local v23, v24, v25 = tbl12.Char()
+        if not (v22 and v22.CreatureGrab and v22.CreatureDrop and v22.RightWeld and v24 and v25 and v25.Health > 0) then
+              return
+        end
+        local tbl16 = {}
+        local tbl17 = {}
+        v22.CreatureDrop:FireServer(v22.RightWeld)
 
-			for _, v26 in ipairs(arg) do
-				local flag12
+        for _, v26 in ipairs(arg) do
+        local flag12
 
-				if arg2 then
-					flag12 = os.clock() - (tbl14.KickServerCooldowns[v26] or -math.huge) < 7
-				else
-					flag12 = arg2
-				end
+        if arg2 then
+            flag12 = os.clock() - (tbl14.KickServerCooldowns[v26] or -math.huge) < 7
+        else
+            flag12 = false                              -- ✅ แก้ #2
+        end
 
-				if not flag12 then
-					local v27, v28, v29 = tbl12.Char(v26)
-					local flag13 = v26 ~= localPlayer and not tbl12.IsProtectedPlayer(v26, arg2) and v28 and v29 and v29.Health > 0
+        if not flag12 then
+            local v27, v28, v29 = tbl12.Char(v26)
+            local flag13 = v26 ~= localPlayer and not tbl12.IsProtectedPlayer(v26, arg2) and v28 and v29 and v29.Health > 0
 
-					if flag13 then
-						flag13 = not (v28.AssemblyRootPart or v28).Massless
-					end
+            if flag13 then
+                flag13 = not (v28.AssemblyRootPart or v28).Massless
+            end
 
-					if flag13 and not v29.SeatPart and tbl14.Release(v26) then
-						tbl16[#tbl16 + 1] = { Character = v27, Root = v28 }
+            if flag13 and not v29.SeatPart and tbl14.Release(v26) then
+                tbl16[#tbl16 + 1] = { Character = v27, Root = v28 }
 
-						if arg2 then
-							tbl14.KickServerCooldowns[v26] = os.clock()
-						end
-					end
-				end
-			end
+                if arg2 then
+                    tbl14.KickServerCooldowns[v26] = os.clock()
+                end
+            end
+        end
 
-			if #tbl16 == 0 then
-				return false
-			end
-			v22.RightWeld.Enabled = false
 
-			for i, v26 in ipairs(tbl16) do
-				local cFrame2 = v24.CFrame * CFrame.Angles(0, i / #tbl16 * 3.1415926535897931 * 2, 0) * CFrame.new(0, 5, -20)
-				v26.CFrame = cFrame2
-				tbl12.Teleport(v26.Root, cFrame2)
-				local v27, v28 = tbl12.CreateAlign(v26.Root, true)
-				local position = cFrame2.Position
-				local cFrame3 = cFrame2 - cFrame2.Position
-				v27.Position = position
-				v28.CFrame = cFrame3
-				local n36 = #tbl17 + 1
-				local n37 = #tbl17 + 2
-				tbl17[n36] = v27
-				tbl17[n37] = v28
-			end
+    if #tbl16 == 0 then
+        return false
+    end
+    v22.RightWeld.Enabled = false
 
-			task.wait(0)
+    for i, v26 in ipairs(tbl16) do
+        local cFrame2 = v24.CFrame * CFrame.Angles(0, i / #tbl16 * 3.1415926535897931 * 2, 0) * CFrame.new(0, 5, -20)
+        v26.Root.CFrame = cFrame2                       -- ✅ แก้ #1
+        tbl12.Teleport(v26.Root, cFrame2)
+        local v27, v28 = tbl12.CreateAlign(v26.Root, true)
+        local position = cFrame2.Position
+        local cFrame3 = cFrame2 - cFrame2.Position
+        v27.Position = position
+        v28.CFrame = cFrame3
+        local n36 = #tbl17 + 1
+        local n37 = #tbl17 + 2
+        tbl17[n36] = v27
+        tbl17[n37] = v28
+    end
 
-			for _, v26 in ipairs(tbl16) do
-				if v26.Root.Parent then
-					tbl12.Grab(v26.Root)
-					tbl12.RNO(v26.Root)
-					v22.CreatureGrab:FireServer(nil, v26.Root, v22.RightWeld)
+    task.wait(0)
 
-					if tbl8.DeleteShurInBlobK then
-						task.spawn(tbl12.RemoveSticky, v26.Character)
-					end
+    for _, v26 in ipairs(tbl16) do
+        if v26.Root.Parent then
+            tbl12.Grab(v26.Root)
+            tbl12.RNO(v26.Root)
+            v22.CreatureGrab:FireServer(nil, v26.Root, v22.RightWeld)
 
-					task.wait()
-				end
-			end
+            if tbl8.DeleteShurInBlobK then
+                task.spawn(tbl12.RemoveSticky, v26.Character)
+            end
+
+            task.wait()
+        end
+    end
+end
 
 			v22.CreatureGrab:FireServer(nil, v24, v22.RightWeld)
 
@@ -35574,320 +35596,303 @@ end)
 		end)
 
 		task.spawn(function()
-			local tbl16 = {}
+    local tbl16 = {}
 
-			local function fn21(arg, arg2)
-				if not arg or not tbl8.EKI then
-					return
-				end
+    local function fn21(arg, arg2)
+        if not arg or not tbl8.EKI then
+            return
+        end
 
-				return sethiddenproperty and pcall(function()
-					sethiddenproperty(arg, "PhysicsRepRootPart", arg2)
-				end)
-			end
+        return sethiddenproperty and pcall(function()
+            sethiddenproperty(arg, "PhysicsRepRootPart", arg2)
+        end)
+    end
 
-			                local function fn22(arg)
-                    -- ฟังก์ชันนี้ทำหน้าที่ "ล้างค่า / คืนสภาพ" เมื่อเป้าหมายหลุดจากการควบคุม
-                    if not arg then
-                        return
-                    end
-                    local v22, v23, v24 = tbl12.Char(arg)
+    local function fn22(arg)
+        -- ฟังก์ชันนี้ทำหน้าที่ "ล้างค่า / คืนสภาพ" เมื่อเป้าหมายหลุดจากการควบคุม
+        if not arg then
+            return
+        end
+        
+        local v22, v23, v24 = tbl12.Char(arg)
 
-                    if v23 then
-                        local kickAP = v23:FindFirstChild("KickAP")
-                        local kickAO = v23:FindFirstChild("KickAO")
-                        local weldHRP = v23:FindFirstChild("WeldHRP")
+        if v23 then
+            local kickAP = v23:FindFirstChild("KickAP")
+            local kickAO = v23:FindFirstChild("KickAO")
+            local weldHRP = v23:FindFirstChild("WeldHRP")
 
-                        
-                        if kickAP then kickAP:Destroy() end
-                        if kickAO then kickAO:Destroy() end
+            if kickAP then kickAP:Destroy() end
+            if kickAO then kickAO:Destroy() end
 
-                        -- คืนค่าข้อต่อถ้าเป้าหมายกำลัง Ragdoll อยู่
-                        if weldHRP and v24:FindFirstChild("Ragdolled") and v24.Ragdolled.Value then
-                            weldHRP.Enabled = true
-                        end
+            -- คืนค่าข้อต่อถ้าเป้าหมายกำลัง Ragdoll อยู่ (เช็ค v24 ด้วยเพื่อไม่ให้ error)
+            if weldHRP and v24 and v24:FindFirstChild("Ragdolled") and v24.Ragdolled.Value then
+                weldHRP.Enabled = true
+            end
 
-                        -- คืนสิทธิ์ Network Owner ให้เขา
-                        if tbl12.IsNetworkOwner(v23) then
-                            fn21(v23, nil)
-                        end
-                    end
+            -- คืนสิทธิ์ Network Owner ให้เขา
+            if tbl12.IsNetworkOwner(v23) then
+                fn21(v23, nil)
+            end
+        end
 
-                    -- คืนกระดูก (Motor6D) และคืนการชน (Collisions) ให้กลับมาปกติ
-                    if v22 then
-                        task.spawn(tbl12.ToggleMotor6D, v22, true, true)
-                        task.spawn(tbl12.ToggleCollisions, v22, true)
+        -- 🔥 ป้องกันตัวค้าง: บังคับให้ลุกขึ้นยืนและคืนค่า Ragdoll
+        if v24 then
+            v24.PlatformStand = false
+            pcall(function() v24:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+            local ragdolled = v24:FindFirstChild("Ragdolled")
+            if ragdolled then ragdolled.Value = false end
+        end
+
+        if v23 then
+            local weldHRP = v23:FindFirstChild("WeldHRP")
+            if weldHRP then weldHRP.Enabled = true end
+        end
+
+        -- คืนกระดูก (Motor6D) และคืนการชน (Collisions) ให้กลับมาปกติ
+        if v22 then
+            task.spawn(tbl12.ToggleMotor6D, v22, true, true)
+            task.spawn(tbl12.ToggleCollisions, v22, true)
+        end
+    end
+
+    local function fn23(arg, arg2, arg3)
+        -- ฟังก์ชันคำนวณตำแหน่งให้เป้าหมายลอยเป็นวงกลมรอบตัวเรา
+        if not arg then return Vector3.zero end
+        if not arg3 or arg3 <= 0 then return Vector3.zero end
+
+        local n36 = 6.2831853071795862 / arg3 * (arg2 - 1)
+        local nkOffset = tbl9.NKOffset
+
+        local argPos
+        if arg:IsA("BasePart") then
+            argPos = arg.Position
+        else
+            local part = arg.PrimaryPart or arg:FindFirstChild("HumanoidRootPart")
+            argPos = part and part.Position
+        end
+
+        if not argPos then
+            return Vector3.zero
+        end
+
+        return argPos + Vector3.new(math.cos(n36) * 10, nkOffset, math.sin(n36) * 10)
+    end
+
+    local ragdollStates = {}
+
+    while task.wait() do
+        if flag11 then
+            for k in pairs(tbl16) do
+                fn22(k)
+                ragdollStates[k] = nil
+            end
+            return
+        end
+
+        if not tbl8.LoopApplyMethodT then
+            for k in pairs(tbl16) do
+                fn22(k)
+                tbl16[k] = nil
+                ragdollStates[k] = nil
+            end
+
+            if not tbl12.WaitForRuntimeToggle("LoopApplyMethodT") then
+                return
+            end
+        end
+
+        local loopApplyMethodT = tbl8.LoopApplyMethodT
+        local selectedPlayers = tbl7.SelectedPlayers
+        local targetMethods = tbl7.TargetMethods
+
+        for k in pairs(tbl16) do
+            if k and (not k.Parent or not targetMethods.Kick or inPlot.Value or not loopApplyMethodT or not selectedPlayers[k]) then
+                fn22(k)
+                tbl16[k] = nil
+                ragdollStates[k] = nil
+            end
+        end
+
+        if not (not loopApplyMethodT or not targetMethods.Kick or inPlot.Value) then
+            local v22, v23, v24 = tbl12.Char()
+
+            if v23 and v24 and v24.Health > 0 then
+                local tbl17 = {}
+
+                for k in pairs(selectedPlayers) do
+                    if k and k.Parent and k:IsA("Player") then
+                        table.insert(tbl17, k)
+                        tbl16[k] = true
                     end
                 end
 
-                local function fn23(arg, arg2, arg3)
-                    -- ฟังก์ชันคำนวณตำแหน่งให้เป้าหมายลอยเป็นวงกลมรอบตัวเรา
-                    local n36 = 6.2831853071795862 / arg3 * (arg2 - 1)
-                    local nkOffset = tbl9.NKOffset
-                    return arg.Position + Vector3.new(math.cos(n36) * 10, nkOffset, math.sin(n36) * 10)
-                end
+                if #tbl17 ~= 0 then
+                    for i, v25 in ipairs(tbl17) do
+                        if v23 and v24 and v24.Health > 0 and not inPlot.Value then
+                            local v26, v27, v28 = tbl12.Char(v25)
+                            local torso = v26 and v26:FindFirstChild("Torso")
 
-                -- =====================================================================
-                -- ตัวแปรสำหรับ "จับเวลา" เพื่อสลับสถานะ ล้ม -> ลุก -> ล้ม
-                -- =====================================================================
-                local ragdollStates = {}
+                            if not (v27 and v28 and torso and v28.Health > 0) then
+                                fn22(v25)
+                                tbl16[v25] = nil
+                                ragdollStates[v25] = nil
+                            else
+                                -- 1. คำนวณตำแหน่งล็อค (ให้ลอยเป็นวงกลมรอบตัวเรา)
+                                local v29 = fn23(v23, i, #tbl17)
+                                local kickAP = v27:FindFirstChild("KickAP")
+                                local kickAO = v27:FindFirstChild("KickAO")
+                                local weldHRP = v27:FindFirstChild("WeldHRP")
 
-                while task.wait() do
-                    if flag11 then
-                        for k in tbl16, nil, nil do
-                            fn22(k)
-                            ragdollStates[k] = nil
-                        end
-                        return
-                    end
+                                -- 2. สร้างตัวล็อคตำแหน่ง (ถ้ายังไม่มี)
+                                if not kickAP or not kickAO then
+                                    if kickAP then kickAP:Destroy() end
+                                    if kickAO then kickAO:Destroy() end
 
-                    if not tbl8.LoopApplyMethodT then
-                        for k in tbl16, nil, nil do
-                            fn22(k)
-                            tbl16[k] = nil
-                            ragdollStates[k] = nil
-                        end
-
-                        if not tbl12.WaitForRuntimeToggle("LoopApplyMethodT") then
-                            return
-                        end
-                    end
-
-                    local loopApplyMethodT = tbl8.LoopApplyMethodT
-                    local selectedPlayers = tbl7.SelectedPlayers
-                    local targetMethods = tbl7.TargetMethods
-
-                    for k in tbl16, nil, nil do
-                        if k and (not k.Parent or not targetMethods.Kick or inPlot.Value or not loopApplyMethodT or not selectedPlayers[k]) then
-                            fn22(k)
-                            tbl16[k] = nil
-                            ragdollStates[k] = nil
-                        end
-                    end
-
-                    if not (not loopApplyMethodT or not targetMethods.Kick or inPlot.Value) then
-                        local v22, v23, v24 = tbl12.Char()
-
-                        if v23 and v24 and v24.Health > 0 then
-                            local tbl17 = {}
-
-                            for k in selectedPlayers, nil, nil do
-                                if k and k.Parent and k:IsA("Player") then
-                                    table.insert(tbl17, k)
-                                    tbl16[k] = true
+                                    kickAP = Instance.new("BodyPosition")
+                                    kickAO = Instance.new("BodyGyro")
+                                    kickAP.D = 200
+                                    kickAP.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                                    kickAP.Position = v29
+                                    kickAP.Parent = v27
+                                    kickAO.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                                    kickAO.D = 200
+                                    kickAO.CFrame = CFrame.new()
+                                    kickAO.Parent = v27
+                                    kickAP.Name = "KickAP"
+                                    kickAO.Name = "KickAO"
                                 end
-                            end
 
-                            if #tbl17 ~= 0 then
-                                for i, v25 in ipairs(tbl17) do
-                                    if v23 and v24 and v24.Health > 0 and not inPlot.Value then
-                                        local v26, v27, v28 = tbl12.Char(v25)
-                                        local torso = v26 and v26:FindFirstChild("Torso")
+                                if weldHRP then
+                                    weldHRP.Enabled = false
+                                end
 
-                                        if not (v27 and v28 and torso and v28.Health > 0) then
-                                            fn22(v25)
-                                            ragdollStates[v25] = nil
-                                        else
-                                            -- 1. คำนวณตำแหน่งล็อค (ให้ลอยเป็นวงกลมรอบตัวเรา)
-                                            local v29 = fn23(v23, i, #tbl17)
-                                            local kickAP = v27:FindFirstChild("KickAP")
-                                            local kickAO = v27:FindFirstChild("KickAO")
-                                            local weldHRP = v27:FindFirstChild("WeldHRP")
+                                -- อัปเดตตำแหน่งล็อคให้วนรอบตัวเรา
+                                kickAP.Position = v29
+                                local flag12
 
-                                            -- 2. สร้างตัวล็อคตำแหน่ง (ถ้ายังไม่มี)
-                                            if not kickAP or not kickAO then
-                                                if kickAP then kickAP:Destroy() end
-                                                if kickAO then kickAO:Destroy() end
+                                if not (tbl12.GetMagnitude(v23, v27) > 33) then
+                                    -- ถ้าระยะไม่เกิน 33 ให้ Grab ตรงๆ
+                                    tbl12.Grab(v27)
+                                    flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
 
-                                                kickAP = Instance.new("BodyPosition")
-                                                local bodyGyro = Instance.new("BodyGyro")
-                                                kickAP.D = 200
-                                                kickAP.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                                                kickAP.Position = v29
-                                                kickAP.Parent = v27
-                                                bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-                                                bodyGyro.D = 200
-                                                bodyGyro.CFrame = CFrame.new()
-                                                bodyGyro.Parent = v27
-                                                kickAP.Name = "KickAP"
-                                                bodyGyro.Name = "KickAO"
-                                            end
-
-                                            if weldHRP then
-                                                weldHRP.Enabled = false
-                                            end
-
-                                            -- อัปเดตตำแหน่งล็อคให้วนรอบตัวเรา
-                                            kickAP.Position = v29
-                                            local flag12
-
-                                            if not (tbl12.GetMagnitude(v23, v27) > 33) then
-                                                -- ถ้าระยะไม่เกิน 33 ให้ Grab ตรงๆ
-                                                                                                tbl12.Grab(v27)
-                                                flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
-
-                                                if flag12 then
-                                                    -- เปลี่ยนจาก 0 เป็น 0.05
-                                                    task.delay(0.05, tbl12.RNO, v27)
-                                                elseif tbl9.NKDelayMode == "Normal" then
-                                                    task.spawn(function()
-                                                        -- เปลี่ยนจาก task.wait() เป็น task.wait(0.1)
-                                                        task.wait(0.1)
-                                                        tbl12.RNO(v27)
-                                                    end)
-                                                end
-
-                                                -- =====================================================================
-                                                -- [ระบบ ล้ม-ลุก] ทำงานเฉพาะเมื่อเปิด "RagdollInNK"
-                                                -- =====================================================================
-                                                if tbl8.RagdollInNK then
-                                                    -- ถ้ายังไม่เริ่ม ให้เริ่มสถานะ "ล้ม" ก่อน
-                                                    if not ragdollStates[v25] then
-                                                        ragdollStates[v25] = { phase = "stand", timer = os.clock() - 2 }
-                                                        warn("[LA Debug] " .. v25.Name .. " | เริ่มเฟสแรก: RAGDOLL (ล้ม)")
-                                                    end
-                                                    
-                                                    local state = ragdollStates[v25]
-                                                    local timePassed = os.clock() - state.timer
-
-                                                    -- [เฟส 1: ล้ม] ถ้าอยู่ในสถานะล้ม และครบ 1.5 วินาที ให้เปลี่ยนเป็นลุก
-                                                    if state.phase == "ragdoll" and timePassed > 1.5 then
-                                                        state.phase = "stand"
-                                                        state.timer = os.clock()
-                                                        
-                                                        warn("[LA Debug] " .. v25.Name .. " | ครบ 1.5 วิ -> เปลี่ยนเป็น: STAND (ลุก)")
-                                                        
-                                                        pcall(tbl12.SNO, v27) -- สำคัญมาก: ต้องยึดสิทธิ์ Network ก่อนเปลี่ยนสถานะ
-                                                        pcall(function()
-                                                            if kickAP then kickAP.Enabled = true end -- เปิดตัวล็อคตำแหน่ง เพื่อดึงตัวกลับมาตั้งหลัก
-                                                            tbl12.ToggleMotor6D(v26, true, true) -- คืนกระดูก (ต่อแขนขากลับ)
-                                                            v28.PlatformStand = false -- ปิดสถานะล้ม
-                                                            v28:ChangeState(Enum.HumanoidStateType.Running) -- สั่งให้ลุกขึ้นยืน
-                                                        end)
-                                                        
-                                                    -- [เฟส 2: ลุก] ถ้าอยู่ในสถานะลุก และครบ 1 วินาที ให้ล้มลงไปใหม่
-                                                    elseif state.phase == "stand" and timePassed > 1 then
-                                                        state.phase = "ragdoll"
-                                                        state.timer = os.clock()
-                                                        
-                                                        warn("[LA Debug] " .. v25.Name .. " | ครบ 1 วิ -> เปลี่ยนเป็น: RAGDOLL (ล้ม)")
-                                                        
-                                                        pcall(tbl12.SNO, v27) -- ยึดสิทธิ์ Network
-                                                        pcall(function()
-                                                            if kickAP then kickAP.Enabled = false end -- ปิดตัวล็อคตำแหน่ง เพื่อให้ฟิสิกส์ล้มลงได้
-                                                            tbl11.RagdollRemote:FireServer(v27, 0.5) -- แจ้ง Server ให้ตัวอ่อน
-                                                            v28.PlatformStand = true -- บังคับให้ล้ม
-                                                            v28:ChangeState(Enum.HumanoidStateType.Physics) -- ปล่อยให้ฟิสิกส์ทำงาน
-                                                        end)
-                                                    end
-                                                end
-                                                -- =====================================================================
-
-                                                if tbl8.DeleteShurInNK then
-                                                    task.spawn(tbl12.RemoveSticky, v26)
-                                                end
-
-                                                tbl12.ToggleCollisions(v26, false)
-                                                tbl12.RepositionLimbs(v26, true)
-
-                                                task.delay(0, function()
-                                                    if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
-                                                        fn21(v27, v27)
-                                                    end
-                                                end)
-                                            elseif tbl12.SNO(v27) then
-                                                -- ถ้าระยะเกิน 33 ให้วาร์ปไปหาแล้ว Grab
-                                                tbl12.Teleport(v27, v29)
-                                                tbl12.Grab(v27)
-                                                flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
-
-                                                if flag12 then
-                                                    -- เปลี่ยนจาก 0.001 เป็น 0.05 (50ms)
-                                                    task.delay(0.05, tbl12.RNO, v27) 
-                                                elseif tbl9.NKDelayMode == "Normal" then
-                                                    task.spawn(function()
-                                                        -- เปลี่ยนจาก task.wait() เป็น task.wait(0.1) (100ms)
-                                                        task.wait(0.1) 
-                                                        tbl12.RNO(v27)
-                                                    end)
-                                                end
-
-                                                -- =====================================================================
-                                                -- [ระบบ ล้ม-ลุก] (โค้ดชุดเดียวกับด้านบน)
-                                                -- =====================================================================
-                                                if tbl8.RagdollInNK then
-                                                    if not ragdollStates[v25] then
-                                                        ragdollStates[v25] = { phase = "ragdoll", timer = os.clock() }
-                                                        warn("[LA Debug] " .. v25.Name .. " | เริ่มเฟสแรก (วาร์ป): RAGDOLL (ล้ม)")
-                                                    end
-                                                    
-                                                    local state = ragdollStates[v25]
-                                                    local timePassed = os.clock() - state.timer
-
-                                                    if state.phase == "ragdoll" and timePassed > 1.5 then
-                                                        state.phase = "stand"
-                                                        state.timer = os.clock()
-                                                        
-                                                        warn("[LA Debug] " .. v25.Name .. " | ครบ 1.5 วิ (วาร์ป) -> เปลี่ยนเป็น: STAND (ลุก)")
-                                                        
-                                                        pcall(tbl12.SNO, v27)
-                                                        pcall(function()
-                                                            if kickAP then kickAP.Enabled = true end
-                                                            tbl12.ToggleMotor6D(v26, true, true)
-                                                            v28.PlatformStand = false
-                                                            v28:ChangeState(Enum.HumanoidStateType.Running)
-                                                        end)
-                                                        
-                                                    elseif state.phase == "stand" and timePassed > 1 then
-                                                        state.phase = "ragdoll"
-                                                        state.timer = os.clock()
-                                                        
-                                                        warn("[LA Debug] " .. v25.Name .. " | ครบ 1 วิ (วาร์ป) -> เปลี่ยนเป็น: RAGDOLL (ล้ม)")
-                                                        
-                                                        pcall(tbl12.SNO, v27)
-                                                        pcall(function()
-                                                            if kickAP then kickAP.Enabled = false end
-                                                            tbl11.RagdollRemote:FireServer(v27, 0.5)
-                                                            v28.PlatformStand = true
-                                                            v28:ChangeState(Enum.HumanoidStateType.Physics)
-                                                        end)
-                                                    end
-                                                end
-                                                -- =====================================================================
-
-                                                if tbl8.DeleteShurInNK then
-                                                    task.spawn(tbl12.RemoveSticky, v26)
-                                                end
-
-                                                tbl12.ToggleCollisions(v26, false)
-                                                tbl12.RepositionLimbs(v26, true)
-
-                                                task.delay(0, function()
-                                                    if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
-                                                        fn21(v27, v27)
-                                                    end
-                                                end)
-                                            else
-                                                fn21(v27, nil)
-                                            end
-                                        end
+                                    if flag12 then
+                                        -- 🔥 โหดขึ้น: RNO burst 4 รอบถี่ๆ (0 / 0.02 / 0.04 / 0.06)
+                                        task.delay(0,    tbl12.RNO, v27)
+                                        task.delay(0.02, tbl12.RNO, v27)
+                                        task.delay(0.04, tbl12.RNO, v27)
+                                        task.delay(0.06, tbl12.RNO, v27)
+                                    elseif tbl9.NKDelayMode == "Normal" then
+                                        task.spawn(function()
+                                            task.wait(0.05)
+                                            tbl12.RNO(v27)
+                                            task.wait(0.05)
+                                            tbl12.RNO(v27)
+                                            task.wait(0.05)
+                                            tbl12.RNO(v27)
+                                        end)
                                     end
-                                end
 
-                                if tbl9.NKDelayMode == "Normal" then
-                                    task.wait()
+                                    if tbl8.DeleteShurInNK then
+                                        task.spawn(tbl12.RemoveSticky, v26)
+                                    end
+
+                                    -- 🔥 โหดขึ้น: ToggleCollisions + RepositionLimbs 2 รอบติด (บิดแขนขาแรงขึ้น)
+                                    tbl12.ToggleCollisions(v26, false)
+                                    tbl12.RepositionLimbs(v26, true)
+                                    tbl12.ToggleCollisions(v26, false)
+                                    tbl12.RepositionLimbs(v26, true)
+
+                                    -- 🔥 โหดขึ้น: กดตำแหน่งล็อคให้วนถี่ขึ้น (กระตุกเป้าหมาย)
+                                    task.delay(0, function()
+                                        if v27 and v27.Parent and kickAP and kickAP.Parent then
+                                            kickAP.Position = v29 + Vector3.new(0, 3, 0)
+                                        end
+                                    end)
+                                    
+                                    task.delay(0.05, function()
+                                        if v27 and v27.Parent and kickAP and kickAP.Parent then
+                                            kickAP.Position = v29
+                                        end
+                                    end)
+
+                                    task.delay(0, function()
+                                        if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
+                                            fn21(v27, v27)
+                                        end
+                                    end)
+                                    
+                                elseif tbl12.SNO(v27) then
+                                    -- ถ้าระยะเกิน 33 ให้วาร์ปไปหาแล้ว Grab (ใช้ตัวเดิม ไม่แก้)
+                                    tbl12.Teleport(v27, v29)
+                                    tbl12.Grab(v27)
+                                    flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
+
+                                    if flag12 then
+                                        -- 🔥 โหดขึ้น: RNO burst 4 รอบถี่ๆ
+                                        task.delay(0,    tbl12.RNO, v27)
+                                        task.delay(0.02, tbl12.RNO, v27)
+                                        task.delay(0.04, tbl12.RNO, v27)
+                                        task.delay(0.06, tbl12.RNO, v27)
+                                    elseif tbl9.NKDelayMode == "Normal" then
+                                        task.spawn(function()
+                                            task.wait(0.05)
+                                            tbl12.RNO(v27)
+                                            task.wait(0.05)
+                                            tbl12.RNO(v27)
+                                            task.wait(0.05)
+                                            tbl12.RNO(v27)
+                                        end)
+                                    end
+
+                                    if tbl8.DeleteShurInNK then
+                                        task.spawn(tbl12.RemoveSticky, v26)
+                                    end
+
+                                    -- 🔥 โหดขึ้น: ToggleCollisions + RepositionLimbs 2 รอบ
+                                    tbl12.ToggleCollisions(v26, false)
+                                    tbl12.RepositionLimbs(v26, true)
+                                    tbl12.ToggleCollisions(v26, false)
+                                    tbl12.RepositionLimbs(v26, true)
+
+                                    -- 🔥 โหดขึ้น: กระตุกตำแหน่งล็อค
+                                    task.delay(0, function()
+                                        if v27 and v27.Parent and kickAP and kickAP.Parent then
+                                            kickAP.Position = v29 + Vector3.new(0, 3, 0)
+                                        end
+                                    end)
+                                    
+                                    task.delay(0.05, function()
+                                        if v27 and v27.Parent and kickAP and kickAP.Parent then
+                                            kickAP.Position = v29
+                                        end
+                                    end)
+
+                                    task.delay(0, function()
+                                        if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
+                                            fn21(v27, v27)
+                                        end
+                                    end)
+                                else
+                                    fn21(v27, nil)
                                 end
                             end
                         end
                     end
+
+                    if tbl9.NKDelayMode == "Normal" then
+                        task.wait()
+                    end
                 end
-            end)
+            end
+        end
+    end
+end)
 
 		lib.ForceCheckbox = true
 
 		v19 = lib:CreateWindow({
 			Title = "<b>LA</b>",
-			Footer = ("<b>Проект LA %* | FTAP</b>"):format("v1.63"),
+			Footer = ("<b>Проект LA %* | FTAP</b>"):format("v1.64 data"),
 			ToggleKeybind = Enum.KeyCode.M,
 			Center = true,
 			AutoShow = true,
@@ -36087,7 +36092,7 @@ end)
 				local floor = math.floor
 				local dataPing = Stats2.Network.ServerStatsItem["Data Ping"]
 				local getValue = dataPing.GetValue
-				setText(v23,("LA %s | %s fps | %s ping"):format("v1.63", math.floor(Stats2.Workspace.Heartbeat:GetValue()), floor(getValue(dataPing))))
+				setText(v23,("LA %s | %s fps | %s ping"):format("v1.64 data", math.floor(Stats2.Workspace.Heartbeat:GetValue()), floor(getValue(dataPing))))
 				task.wait(1)
 			end
 		end)
@@ -36192,7 +36197,7 @@ end)
 		do
 			local Statistics = tbl15.Home:AddRightGroupbox("memory", "chart-no-axes-column")
 			Statistics:AddLabel("CurrentTime", { Text = "time: 00:00", DoesWrap = true })
-			Statistics:AddLabel("VerLabel", { Text = ("script version: <b>%*</b>"):format("v1.63"), DoesWrap = true })
+			Statistics:AddLabel("VerLabel", { Text = ("script version: <b>%*</b>"):format("v1.64 data"), DoesWrap = true })
 			Statistics:AddLabel("TogglesCurrentlyOn", { Text = "Toggles currently enabled: 0", DoesWrap = true })
 			Statistics:AddDivider("Server memory")
 			Statistics:AddLabel("Game name: <b>Fling Things and People</b>")
@@ -37157,7 +37162,7 @@ end)
 				"Infinite",
 				"Noclip",
 			},
-			Multi = true,
+			Multi = false,
 			AllowNull = true,
 			Searchable = true,
 			Text = "Grabs",
@@ -44493,7 +44498,7 @@ local Intro = {}
 
 local CONFIG = {
 	Title = "LA",
-	Subtitle = "Проект LA v1.63 | FTAP",
+	Subtitle = "Проект LA v1.64 data | FTAP",
 	Icon = "rbxassetid://126994849272867",
 
 	MinTime = 2.6, -- the animation never ends before this many seconds
