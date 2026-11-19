@@ -5382,6 +5382,19 @@ do
             })
         )
 
+        -- Panels (menu / footer) must use a fixed pixel radius. A scale radius
+        -- (UDim.new(1, ...)) turns a big frame into an oval and clips its content.
+        local function GetPanelRadius()
+            return UDim.new(0, math.min(Library.CornerRadius / 2, 12))
+        end
+        local PanelSquare = UDim.new(0, 0)
+        local function DetachSpecificCorner(Corner)
+            local Index = Corner and table.find(Library.SpecificCorners, Corner)
+            if Index then
+                table.remove(Library.SpecificCorners, Index)
+            end
+        end
+
         local MapSize = Library.IsMobile and 140 or 200
         local BarWidth = 16
         local MenuWidth = MapSize + BarWidth + 6 + 12
@@ -5406,23 +5419,33 @@ do
                 ColorPickerCorner.BottomRightRadius = Active and Zero or Half
                 ColorPickerCorner.BottomLeftRadius = Active and Zero or Half
 
+                local PanelHalf = GetPanelRadius()
+
                 local MenuCorner = ColorMenu and ColorMenu.Corner
                 if MenuCorner then
-                    MenuCorner.TopLeftRadius = Zero
-                    MenuCorner.TopRightRadius = Half
-                    MenuCorner.BottomRightRadius = Half
-                    MenuCorner.BottomLeftRadius = Half
+                    MenuCorner.TopLeftRadius = PanelSquare
+                    MenuCorner.TopRightRadius = PanelHalf
+                    MenuCorner.BottomRightRadius = PanelHalf
+                    MenuCorner.BottomLeftRadius = PanelHalf
                 end
 
                 if FooterCorner then
-                    FooterCorner.TopLeftRadius = Zero
-                    FooterCorner.TopRightRadius = Zero
-                    FooterCorner.BottomLeftRadius = Half
-                    FooterCorner.BottomRightRadius = Half
+                    FooterCorner.TopLeftRadius = PanelSquare
+                    FooterCorner.TopRightRadius = PanelSquare
+                    FooterCorner.BottomLeftRadius = PanelHalf
+                    FooterCorner.BottomRightRadius = PanelHalf
                 end
             end, false, "no_top_left")
         ColorMenu.List.Padding = UDim.new(0, 0)
         ColorPicker.ColorMenu = ColorMenu
+
+        if ColorMenu.Corner then
+            DetachSpecificCorner(ColorMenu.Corner)
+            ColorMenu.Corner.TopLeftRadius = PanelSquare
+            ColorMenu.Corner.TopRightRadius = GetPanelRadius()
+            ColorMenu.Corner.BottomRightRadius = GetPanelRadius()
+            ColorMenu.Corner.BottomLeftRadius = GetPanelRadius()
+        end
 
         local ContentHolder = New("Frame", {
             AutomaticSize = Enum.AutomaticSize.Y,
@@ -5452,13 +5475,12 @@ do
             Parent = ColorMenu.Menu,
         })
         FooterCorner = New("UICorner", {
-            TopLeftRadius = UDim.new(1, 0),
-            TopRightRadius = UDim.new(1, 0),
-            BottomLeftRadius = UDim.new(1, Library.CornerRadius / 2),
-            BottomRightRadius = UDim.new(1, Library.CornerRadius / 2),
+            TopLeftRadius = PanelSquare,
+            TopRightRadius = PanelSquare,
+            BottomLeftRadius = GetPanelRadius(),
+            BottomRightRadius = GetPanelRadius(),
             Parent = FooterBackground,
         })
-        table.insert(Library.SpecificCorners, FooterCorner)
         Library:MakeLine(FooterBackground, {
             Position = UDim2.fromScale(0, 0),
             Size = UDim2.new(1, 0, 0, 1),
@@ -5780,15 +5802,23 @@ do
             ColorPickerCorner.TopRightRadius = Active and Zero or Half
             ColorPickerCorner.BottomRightRadius = Active and Zero or Half
 
+            local PanelHalf = GetPanelRadius()
             local MenuCorner = ContextMenu and ContextMenu.Corner
             if MenuCorner then
-                MenuCorner.TopLeftRadius = Zero
-                MenuCorner.TopRightRadius = Half
-                MenuCorner.BottomRightRadius = Half
-                MenuCorner.BottomLeftRadius = Half
+                MenuCorner.TopLeftRadius = PanelSquare
+                MenuCorner.TopRightRadius = PanelHalf
+                MenuCorner.BottomRightRadius = PanelHalf
+                MenuCorner.BottomLeftRadius = PanelHalf
             end
         end, false, "no_top_left")
         ColorPicker.ContextMenu = ContextMenu
+        if ContextMenu.Corner then
+            DetachSpecificCorner(ContextMenu.Corner)
+            ContextMenu.Corner.TopLeftRadius = PanelSquare
+            ContextMenu.Corner.TopRightRadius = GetPanelRadius()
+            ContextMenu.Corner.BottomRightRadius = GetPanelRadius()
+            ContextMenu.Corner.BottomLeftRadius = GetPanelRadius()
+        end
         ContextMenu.List.Padding = UDim.new(0, 6)
         do
             local function CreateButton(Text, Func)
@@ -21562,77 +21592,56 @@ end
 				end
 
 				tbl12.Ragdoll = function(arg)
-    if not arg or not arg.Parent or tbl7.States.Ragdolling then
-        return
-    end
-    local head = arg:FindFirstChild("Head")
-    local torso = head and arg:FindFirstChild("Torso")
-    local humanoid = torso and arg:FindFirstChild("Humanoid")
-    humanoid = humanoid and humanoid:FindFirstChild("Ragdolled")
+					if not arg or not arg.Parent or tbl7.States.Ragdolling then
+						return
+					end
+					local head = arg:FindFirstChild("Head")
+					local torso = head and arg:FindFirstChild("Torso")
+					local humanoid = torso and arg:FindFirstChild("Humanoid")
+					humanoid = humanoid and humanoid:FindFirstChild("Ragdolled")
 
-    if humanoid and humanoid.Value == false then
-        tbl7.States.Ragdolling = true
+					if humanoid and humanoid.Value == false then
+						tbl7.States.Ragdolling = true
+						local ragdollRSC = v17:FindFirstChild("RagdollRSC") or tbl12.SpawnToy("PalletLightBrown")
+						local soundPart = ragdollRSC and ragdollRSC:WaitForChild("SoundPart", 0.5)
+						local main = soundPart and ragdollRSC:WaitForChild("Main", 0.5)
+						if not main or not tbl12.SNO(soundPart) then
+							tbl7.States.Ragdolling = false
+							return tbl12.DestroyToy(ragdollRSC)
+						end
+						ragdollRSC.Name = "RagdollRSC"
 
-        local ok, result = pcall(function()                         -- ✅ แก้ #2
-            local ragdollRSC = v17:FindFirstChild("RagdollRSC") or tbl12.SpawnToy("PalletLightBrown")
-            if not ragdollRSC then
-                return false                                        -- ✅ แก้ #3
-            end
-            local soundPart = ragdollRSC:WaitForChild("SoundPart", 0.5)
-            local main = soundPart and ragdollRSC:WaitForChild("Main", 0.5)
-            if not main or not tbl12.SNO(soundPart) then
-                tbl12.DestroyToy(ragdollRSC)
-                return false
-            end
-            ragdollRSC.Name = "RagdollRSC"
+						for _, child in pairs(ragdollRSC:GetChildren()) do
+							if child:IsA("BasePart") then
+								child.CanCollide = false
+							end
+						end
 
-            for _, child in pairs(ragdollRSC:GetChildren()) do
-                if child:IsA("BasePart") then
-                    child.CanCollide = false
-                end
-            end
+						if not main:FindFirstChild("RagdollBP") then
+							local bodyPosition = Instance.new("BodyPosition")
+							bodyPosition.Name = "RagdollBP"
+							bodyPosition.D = 1500
+							bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+							bodyPosition.Position = Vector3.new(0, 100000, 0)
+							bodyPosition.Parent = main
+						end
 
-            local bodyPosition = main:FindFirstChild("RagdollBP")
-            if not bodyPosition then
-                bodyPosition = Instance.new("BodyPosition")
-                bodyPosition.Name = "RagdollBP"
-                bodyPosition.D = 1500
-                bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                bodyPosition.Parent = main
-            end
+						local now3 = tick()
 
-            local now3 = tick()
+						while true do
+							soundPart.Position = torso.Position
+							soundPart.Velocity = Vector3.new(0, -10, 0)
+							task.wait(0.1)
+							if not (humanoid.Value or not main.Parent or not arg.Parent or not head:FindFirstChild("PartOwner") or tick() - now3 > 0.5) then
+								continue
+							end
+							break
+						end
 
-            while true do
-                if not torso.Parent or not arg.Parent then
-                    break
-                end
-                soundPart.Position = torso.Position
-                soundPart.Velocity = Vector3.new(0, -100, 0)
-                bodyPosition.Position = torso.Position            -- ✅ แก้ #1
-                task.wait(0)
-                if not (humanoid.Value
-                    or not main.Parent
-                    or not arg.Parent
-                    or not head:FindFirstChild("PartOwner")
-                    or tick() - now3 > 0.5) then
-                    continue
-                end
-                break
-            end
-
-            return humanoid.Value == true                          -- ✅ แก้ #4
-        end)
-
-        tbl7.States.Ragdolling = false                              -- ✅ แก้ #2 (reset เสมอ)
-        if not ok then
-            warn("[Ragdoll] error:", result)
-            return false
-        end
-        return result
-    end
-    return false                                                    -- ✅ แก้ #4
-end
+						tbl7.States.Ragdolling = false
+						return humanoid.Value
+					end
+				end
 
 				tbl12.RemoveSticky = function(arg, arg2)
 					if not arg or not arg.Parent then
@@ -22628,7 +22637,6 @@ end
 																				random = math.random
 																				bodyPosition.Position =Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
-																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
 																				v26:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
 
@@ -22808,7 +22816,6 @@ end
 																				random = math.random
 																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
-																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
 																				v26:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
 
@@ -23011,7 +23018,6 @@ end
 																				random = math.random
 																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
-																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
 																				v26:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
 
@@ -23191,7 +23197,6 @@ end
 																				random = math.random
 																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
-																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
 																				v26:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
 
@@ -23387,7 +23392,6 @@ end
 																				random = math.random
 																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
-																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
 																				v26:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
 
@@ -23567,7 +23571,6 @@ end
 																				random = math.random
 																				bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 																				v27.BP = bodyPosition
-																				vehicle.Name = "GucciRSC"
 																				bodyPosition.Parent = root
 																				v26:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
 
@@ -23761,7 +23764,6 @@ end
 															random = math.random
 															bodyPosition.Position = Vector3.new(math.random(-1e9, 1e9), 1e9, math.random(-1e9, 1e9))
 															v27.BP = bodyPosition
-															vehicle.Name = "GucciRSC"
 															bodyPosition.Parent = root
 															v26:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
 
@@ -30742,86 +30744,53 @@ end
 			}
 		end
 
-		local sitBusy = false
+        tbl14.Sit = function()
+			local v22, v23, v24 = tbl12.Char()
+			local flag12 = v24 and v24.Health > 0 and v23
 
-local sitBusy = false
+			if flag12 then
+				flag12 = not (parent or v24.Sit and v24.SeatPart or tbl8.GucciAntiGrab)
+			end
 
-tbl14.Sit = function()
-    if sitBusy then return end
+			if not flag12 then
+				return
+			end
+			local creatureBlobman = v17:FindFirstChild("CreatureBlobman")
+			local vehicleSeat = creatureBlobman and creatureBlobman:FindFirstChild("VehicleSeat")
+			local flag13 = vehicleSeat and (vehicleSeat.Occupant == nil or vehicleSeat.Occupant == v24)
 
-    local _, hrp, humanoid = tbl12.Char()
-    if not (humanoid and hrp and humanoid.Health > 0) then return end
-    if parent then return end -- นั่ง Blobman อยู่แล้ว
+			if vehicleSeat and not flag13 then
+				tbl12.DestroyToy(creatureBlobman)
+			end
 
-    sitBusy = true
+			if not (flag13 and creatureBlobman) then
+				creatureBlobman = tbl12.SpawnToy("CreatureBlobman")
+			end
 
-    local ok, err = pcall(function()
-        local returnCFrame = hrp.CFrame
+			if not (flag13 and vehicleSeat) then
+				vehicleSeat = creatureBlobman and creatureBlobman:WaitForChild("VehicleSeat", 0.5)
+			end
 
-        local function alive()
-            return not flag11 and humanoid.Parent ~= nil and humanoid.Health > 0 and hrp.Parent ~= nil
-        end
+			if not vehicleSeat then
+				tbl12.DestroyToy(creatureBlobman)
+				return
+			end
+			local cFrame2 = v23.CFrame
+			local now3 = tick()
 
-        -- หา Blobman ที่ว่างจริง และไม่ใช่ของ Gucci (ที่ถูกจองไว้)
-        local function findFree()
-            for _, m in ipairs(v17:GetChildren()) do
-                if m.Name == "CreatureBlobman" and not tbl7.ToyAuraReserved[m] then
-                    local s = m:FindFirstChild("VehicleSeat")
-                    if s and (s.Occupant == nil or s.Occupant == humanoid) then
-                        return m, s
-                    end
-                end
-            end
-        end
+			while true do
+				vehicleSeat:Sit(v24)
+				task.wait()
+				if not (parent or tick() - now3 > 1) then
+					continue
+				end
+				break
+			end
 
-        for attempt = 1, 4 do
-            if not alive() then break end
-            print("[Sit] attempt", attempt, "gucci =", tbl8.GucciAntiGrab)
-
-            local blobman, seat = findFree()
-            local spawnedToy = nil
-
-            if not seat then
-                blobman = tbl12.SpawnToy("CreatureBlobman")
-                spawnedToy = blobman
-                seat = blobman and blobman:WaitForChild("VehicleSeat", 3)
-                print("[Sit] spawn ->", blobman, seat)
-            end
-
-            if not seat then
-                -- ลบเฉพาะที่เราสปอว์นเอง
-                if spawnedToy then tbl12.DestroyToy(spawnedToy) end
-                task.wait(0.3)
-                continue
-            end
-
-            local startTime = os.clock()
-            local seated = false
-            while os.clock() - startTime < 0.4 do
-                if not alive() then break end
-                seat:Sit(humanoid)
-                task.wait()
-                if parent or humanoid.SeatPart == seat then
-                    seated = true
-                    break
-                end
-            end
-
-            if seated and alive() then
-                print("[Sit] นั่งสำเร็จ")
-                tbl12.Teleport(hrp, returnCFrame)
-                return
-            end
-
-            if spawnedToy then tbl12.DestroyToy(spawnedToy) end
-            task.wait(0.1)
-        end
-        print("[Sit] นั่งไม่สำเร็จ")
-    end)
-
-    sitBusy = false
-    if not ok then warn("[Sit] error:", err) end
-end
+			if parent then
+				tbl12.Teleport(v23, cFrame2)
+			end
+		end
 
 		tbl14.Grab = function(arg, arg2)
 			if not parent then
@@ -30867,7 +30836,7 @@ end
 				currentCamera.CameraType = Enum.CameraType.Custom
 			else
 				v22.CreatureGrab:FireServer(nil, v27, v22.RightWeld)
-				task.wait(0.0001)
+				task.wait(0.1)
 			end
 
 			if v22.RightWeld and v22.RightWeld.Attachment0 == rootAttachment then
@@ -31000,7 +30969,7 @@ end
         if arg2 then
             flag12 = os.clock() - (tbl14.KickServerCooldowns[v26] or -math.huge) < 7
         else
-            flag12 = false                              -- ✅ แก้ #2
+            flag12 = false                   
         end
 
         if not flag12 then
@@ -31028,7 +30997,7 @@ end
 
     for i, v26 in ipairs(tbl16) do
         local cFrame2 = v24.CFrame * CFrame.Angles(0, i / #tbl16 * 3.1415926535897931 * 2, 0) * CFrame.new(0, 5, -20)
-        v26.Root.CFrame = cFrame2                       -- ✅ แก้ #1
+        v26.Root.CFrame = cFrame2       
         tbl12.Teleport(v26.Root, cFrame2)
         local v27, v28 = tbl12.CreateAlign(v26.Root, true)
         local position = cFrame2.Position
@@ -32744,7 +32713,6 @@ end
                                 while not flag11 and tbl8[arg3] and tbl10.LoopTokens[arg3] == v22 do
                                     if arg5 and arg4 and tbl9.BlobMethod == "Kick" then
                                         tbl14.KickServer()
-                                        -- [โหดขึ้น] สแปมไวขึ้น (จาก 1 วินาที -> 0.1 วินาที)
                                         task.wait(0.1)
                                     else
 
@@ -34396,6 +34364,62 @@ Escape Timer: %*]]
     end)
 end
 
+        task.spawn(function()
+			while task.wait(0.2) do
+				if flag11 then
+					return
+				end
+
+				if not tbl8.AntiKick2 and not tbl12.WaitForRuntimeToggle("AntiKick2") then
+					return
+				end
+				local v22, v23, v24 = tbl12.Char()
+
+				if v24 then
+					if not v24:GetAttribute("BrokenPCLD") or v24.Health <= 0 then
+						local result = nil
+
+						if v24.Health > 0 then
+							fn18("Starting PCLD Break...", "PCLD Breaker")
+
+							task.spawn(function()
+								repeat
+									v24.Health = 0
+									v24:ChangeState(Enum.HumanoidStateType.Dead)
+									fn20()
+								until result
+							end)
+						else
+							fn18("Detected death, breaking PCLD again...", "PCLD Breaker")
+						end
+
+						result = localPlayer.CharacterAdded:Wait()
+						local humanoid = result:WaitForChild("Humanoid", 5)
+
+						if humanoid then
+							local result2 = nil
+
+							task.spawn(function()
+								repeat
+									humanoid.Health = 0
+									humanoid:ChangeState(Enum.HumanoidStateType.Dead)
+									fn20()
+								until result2
+							end)
+
+							result2 = localPlayer.CharacterAdded:Wait()
+							local humanoid2 = result2:WaitForChild("Humanoid", 5)
+
+							if humanoid2 then
+								humanoid2:SetAttribute("BrokenPCLD", true)
+								fn18("Done!", "PCLD Breaker")
+							end
+						end
+					end
+				end
+			end
+		end)
+
 		do
 			local flag12 = false
 
@@ -35578,297 +35602,220 @@ end)
 		end)
 
 		task.spawn(function()
-    local tbl16 = {}
+			local tbl16 = {}
 
-    local function fn21(arg, arg2)
-        if not arg or not tbl8.EKI then
-            return
-        end
+			local function fn21(arg, arg2)
+				if not arg or not tbl8.EKI then
+					return
+				end
 
-        return sethiddenproperty and pcall(function()
-            sethiddenproperty(arg, "PhysicsRepRootPart", arg2)
-        end)
-    end
+				return sethiddenproperty and pcall(function()
+					sethiddenproperty(arg, "PhysicsRepRootPart", arg2)
+				end)
+			end
 
-    local function fn22(arg)
-        -- ฟังก์ชันนี้ทำหน้าที่ "ล้างค่า / คืนสภาพ" เมื่อเป้าหมายหลุดจากการควบคุม
-        if not arg then
-            return
-        end
-        
-        local v22, v23, v24 = tbl12.Char(arg)
+			local function fn22(arg)
+				if not arg then
+					return
+				end
+				local v22, v23, v24 = tbl12.Char(arg)
 
-        if v23 then
-            local kickAP = v23:FindFirstChild("KickAP")
-            local kickAO = v23:FindFirstChild("KickAO")
-            local weldHRP = v23:FindFirstChild("WeldHRP")
+				if v23 then
+					local kickAP = v23:FindFirstChild("KickAP")
+					local kickAO = v23:FindFirstChild("KickAO")
+					local weldHRP = v23:FindFirstChild("WeldHRP")
 
-            if kickAP then kickAP:Destroy() end
-            if kickAO then kickAO:Destroy() end
+					if kickAP then
+						kickAP:Destroy()
+					end
 
-            -- คืนค่าข้อต่อถ้าเป้าหมายกำลัง Ragdoll อยู่ (เช็ค v24 ด้วยเพื่อไม่ให้ error)
-            if weldHRP and v24 and v24:FindFirstChild("Ragdolled") and v24.Ragdolled.Value then
-                weldHRP.Enabled = true
-            end
+					if kickAO then
+						kickAO:Destroy()
+					end
 
-            -- คืนสิทธิ์ Network Owner ให้เขา
-            if tbl12.IsNetworkOwner(v23) then
-                fn21(v23, nil)
-            end
-        end
+					if weldHRP and v24:FindFirstChild("Ragdolled") and v24.Ragdolled.Value then
+						weldHRP.Enabled = true
+					end
 
-        -- 🔥 ป้องกันตัวค้าง: บังคับให้ลุกขึ้นยืนและคืนค่า Ragdoll
-        if v24 then
-            v24.PlatformStand = false
-            pcall(function() v24:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-            local ragdolled = v24:FindFirstChild("Ragdolled")
-            if ragdolled then ragdolled.Value = false end
-        end
+					if tbl12.IsNetworkOwner(v23) then
+						fn21(v23, nil)
+					end
+				end
 
-        if v23 then
-            local weldHRP = v23:FindFirstChild("WeldHRP")
-            if weldHRP then weldHRP.Enabled = true end
-        end
+				if v22 then
+					task.spawn(tbl12.ToggleMotor6D, v22, true, true)
+					task.spawn(tbl12.ToggleCollisions, v22, true)
+				end
+			end
 
-        -- คืนกระดูก (Motor6D) และคืนการชน (Collisions) ให้กลับมาปกติ
-        if v22 then
-            task.spawn(tbl12.ToggleMotor6D, v22, true, true)
-            task.spawn(tbl12.ToggleCollisions, v22, true)
-        end
-    end
+			local function fn23(arg, arg2, arg3)
+				local n36 = 6.2831853071795862 / arg3 * (arg2 - 1)
+				local nkOffset = tbl9.NKOffset
+				return arg.Position + Vector3.new(math.cos(n36) * 10, nkOffset, math.sin(n36) * 10)
+			end
 
-    local function fn23(arg, arg2, arg3)
-        -- ฟังก์ชันคำนวณตำแหน่งให้เป้าหมายลอยเป็นวงกลมรอบตัวเรา
-        if not arg then return Vector3.zero end
-        if not arg3 or arg3 <= 0 then return Vector3.zero end
+			while task.wait() do
+				if flag11 then
+					for k in tbl16, nil, nil do
+						fn22(k)
+					end
 
-        local n36 = 6.2831853071795862 / arg3 * (arg2 - 1)
-        local nkOffset = tbl9.NKOffset
+					return
+				end
 
-        local argPos
-        if arg:IsA("BasePart") then
-            argPos = arg.Position
-        else
-            local part = arg.PrimaryPart or arg:FindFirstChild("HumanoidRootPart")
-            argPos = part and part.Position
-        end
+				if not tbl8.LoopApplyMethodT then
+					for k in tbl16, nil, nil do
+						fn22(k)
+						tbl16[k] = nil
+					end
 
-        if not argPos then
-            return Vector3.zero
-        end
+					if not tbl12.WaitForRuntimeToggle("LoopApplyMethodT") then
+						return
+					end
+				end
 
-        return argPos + Vector3.new(math.cos(n36) * 10, nkOffset, math.sin(n36) * 10)
-    end
+				local loopApplyMethodT = tbl8.LoopApplyMethodT
+				local selectedPlayers = tbl7.SelectedPlayers
+				local targetMethods = tbl7.TargetMethods
 
-    local ragdollStates = {}
+				for k in tbl16, nil, nil do
+					if k and (not k.Parent or not targetMethods.Kick or inPlot.Value or not loopApplyMethodT or not selectedPlayers[k]) then
+						fn22(k)
+						tbl16[k] = nil
+					end
+				end
 
-    while task.wait() do
-        if flag11 then
-            for k in pairs(tbl16) do
-                fn22(k)
-                ragdollStates[k] = nil
-            end
-            return
-        end
+				if not (not loopApplyMethodT or not targetMethods.Kick or inPlot.Value) then
+					local v22, v23, v24 = tbl12.Char()
 
-        if not tbl8.LoopApplyMethodT then
-            for k in pairs(tbl16) do
-                fn22(k)
-                tbl16[k] = nil
-                ragdollStates[k] = nil
-            end
+					if v23 and v24 and v24.Health > 0 then
+						local tbl17 = {}
 
-            if not tbl12.WaitForRuntimeToggle("LoopApplyMethodT") then
-                return
-            end
-        end
+						for k in selectedPlayers, nil, nil do
+							if k and k.Parent and k:IsA("Player") then
+								table.insert(tbl17, k)
+								tbl16[k] = true
+							end
+						end
 
-        local loopApplyMethodT = tbl8.LoopApplyMethodT
-        local selectedPlayers = tbl7.SelectedPlayers
-        local targetMethods = tbl7.TargetMethods
+						if #tbl17 ~= 0 then
+							for i, v25 in ipairs(tbl17) do
+								if v23 and v24 and v24.Health > 0 and not inPlot.Value then
+									local v26, v27, v28 = tbl12.Char(v25)
+									local torso = v26 and v26:FindFirstChild("Torso")
 
-        for k in pairs(tbl16) do
-            if k and (not k.Parent or not targetMethods.Kick or inPlot.Value or not loopApplyMethodT or not selectedPlayers[k]) then
-                fn22(k)
-                tbl16[k] = nil
-                ragdollStates[k] = nil
-            end
-        end
+									if not (v27 and v28 and torso and v28.Health > 0) then
+										fn22(v25)
+									else
+										local v29 = fn23(v23, i, #tbl17)
+										local kickAP = v27:FindFirstChild("KickAP")
+										local kickAO = v27:FindFirstChild("KickAO")
+										local weldHRP = v27:FindFirstChild("WeldHRP")
 
-        if not (not loopApplyMethodT or not targetMethods.Kick or inPlot.Value) then
-            local v22, v23, v24 = tbl12.Char()
+										if not kickAP or not kickAO then
+											if kickAP then
+												kickAP:Destroy()
+											end
 
-            if v23 and v24 and v24.Health > 0 then
-                local tbl17 = {}
+											if kickAO then
+												kickAO:Destroy()
+											end
 
-                for k in pairs(selectedPlayers) do
-                    if k and k.Parent and k:IsA("Player") then
-                        table.insert(tbl17, k)
-                        tbl16[k] = true
-                    end
-                end
+											kickAP = Instance.new("BodyPosition")
+											local bodyGyro = Instance.new("BodyGyro")
+											kickAP.D = 200
+											kickAP.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+											kickAP.Position = v29
+											kickAP.Parent = v27
+											bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+											bodyGyro.D = 200
+											bodyGyro.CFrame = CFrame.new()
+											bodyGyro.Parent = v27
+											kickAP.Name = "KickAP"
+											bodyGyro.Name = "KickAO"
+										end
 
-                if #tbl17 ~= 0 then
-                    for i, v25 in ipairs(tbl17) do
-                        if v23 and v24 and v24.Health > 0 and not inPlot.Value then
-                            local v26, v27, v28 = tbl12.Char(v25)
-                            local torso = v26 and v26:FindFirstChild("Torso")
+										if weldHRP then
+											weldHRP.Enabled = false
+										end
 
-                            if not (v27 and v28 and torso and v28.Health > 0) then
-                                fn22(v25)
-                                tbl16[v25] = nil
-                                ragdollStates[v25] = nil
-                            else
-                                -- 1. คำนวณตำแหน่งล็อค (ให้ลอยเป็นวงกลมรอบตัวเรา)
-                                local v29 = fn23(v23, i, #tbl17)
-                                local kickAP = v27:FindFirstChild("KickAP")
-                                local kickAO = v27:FindFirstChild("KickAO")
-                                local weldHRP = v27:FindFirstChild("WeldHRP")
+										kickAP.Position = v29
+										local flag12
 
-                                -- 2. สร้างตัวล็อคตำแหน่ง (ถ้ายังไม่มี)
-                                if not kickAP or not kickAO then
-                                    if kickAP then kickAP:Destroy() end
-                                    if kickAO then kickAO:Destroy() end
+										if not (tbl12.GetMagnitude(v23, v27) > 33) then
+											tbl12.Grab(v27)
+											flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
 
-                                    kickAP = Instance.new("BodyPosition")
-                                    kickAO = Instance.new("BodyGyro")
-                                    kickAP.D = 200
-                                    kickAP.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                                    kickAP.Position = v29
-                                    kickAP.Parent = v27
-                                    kickAO.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-                                    kickAO.D = 200
-                                    kickAO.CFrame = CFrame.new()
-                                    kickAO.Parent = v27
-                                    kickAP.Name = "KickAP"
-                                    kickAO.Name = "KickAO"
-                                end
+											if flag12 then
+												task.delay(0.2, tbl12.RNO, v27)
+											elseif tbl9.NKDelayMode == "Normal" then
+												task.spawn(function()
+													task.wait()
+													tbl12.RNO(v27)
+												end)
+											end
 
-                                if weldHRP then
-                                    weldHRP.Enabled = false
-                                end
+											if tbl8.RagdollInNK then
+												task.spawn(tbl12.Ragdoll, v26)
+											end
 
-                                -- อัปเดตตำแหน่งล็อคให้วนรอบตัวเรา
-                                kickAP.Position = v29
-                                local flag12
+											if tbl8.DeleteShurInNK then
+												task.spawn(tbl12.RemoveSticky, v26)
+											end
 
-                                if not (tbl12.GetMagnitude(v23, v27) > 33) then
-                                    -- ถ้าระยะไม่เกิน 33 ให้ Grab ตรงๆ
-                                    tbl12.Grab(v27)
-                                    flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
+											tbl12.ToggleCollisions(v26, false)
+											tbl12.RepositionLimbs(v26, true)
 
-                                    if flag12 then
-                                        -- 🔥 โหดขึ้น: RNO burst 4 รอบถี่ๆ (0 / 0.02 / 0.04 / 0.06)
-                                        task.delay(0,    tbl12.RNO, v27)
-                                        task.delay(0.02, tbl12.RNO, v27)
-                                        task.delay(0.04, tbl12.RNO, v27)
-                                        task.delay(0.06, tbl12.RNO, v27)
-                                    elseif tbl9.NKDelayMode == "Normal" then
-                                        task.spawn(function()
-                                            task.wait(0.05)
-                                            tbl12.RNO(v27)
-                                            task.wait(0.05)
-                                            tbl12.RNO(v27)
-                                            task.wait(0.05)
-                                            tbl12.RNO(v27)
-                                        end)
-                                    end
+											task.delay(0.6, function()
+												if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
+													fn21(v27, v27)
+												end
+											end)
+										elseif tbl12.SNO(v27) then
+											tbl12.Teleport(v27, v29)
+											tbl12.Grab(v27)
+											flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
 
-                                    if tbl8.DeleteShurInNK then
-                                        task.spawn(tbl12.RemoveSticky, v26)
-                                    end
+											if flag12 then
+												task.delay(0.2, tbl12.RNO, v27)
+											elseif tbl9.NKDelayMode == "Normal" then
+												task.spawn(function()
+													task.wait()
+													tbl12.RNO(v27)
+												end)
+											end
 
-                                    -- 🔥 โหดขึ้น: ToggleCollisions + RepositionLimbs 2 รอบติด (บิดแขนขาแรงขึ้น)
-                                    tbl12.ToggleCollisions(v26, false)
-                                    tbl12.RepositionLimbs(v26, true)
-                                    tbl12.ToggleCollisions(v26, false)
-                                    tbl12.RepositionLimbs(v26, true)
+											if tbl8.RagdollInNK then
+												task.spawn(tbl12.Ragdoll, v26)
+											end
 
-                                    -- 🔥 โหดขึ้น: กดตำแหน่งล็อคให้วนถี่ขึ้น (กระตุกเป้าหมาย)
-                                    task.delay(0, function()
-                                        if v27 and v27.Parent and kickAP and kickAP.Parent then
-                                            kickAP.Position = v29 + Vector3.new(0, 3, 0)
-                                        end
-                                    end)
-                                    
-                                    task.delay(0.05, function()
-                                        if v27 and v27.Parent and kickAP and kickAP.Parent then
-                                            kickAP.Position = v29
-                                        end
-                                    end)
+											if tbl8.DeleteShurInNK then
+												task.spawn(tbl12.RemoveSticky, v26)
+											end
 
-                                    task.delay(0, function()
-                                        if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
-                                            fn21(v27, v27)
-                                        end
-                                    end)
-                                    
-                                elseif tbl12.SNO(v27) then
-                                    -- ถ้าระยะเกิน 33 ให้วาร์ปไปหาแล้ว Grab (ใช้ตัวเดิม ไม่แก้)
-                                    tbl12.Teleport(v27, v29)
-                                    tbl12.Grab(v27)
-                                    flag12 = tbl9.NKDelayMode == "Faster but worse" or not tbl9.NKDelayMode
+											tbl12.ToggleCollisions(v26, false)
+											tbl12.RepositionLimbs(v26, true)
 
-                                    if flag12 then
-                                        -- 🔥 โหดขึ้น: RNO burst 4 รอบถี่ๆ
-                                        task.delay(0,    tbl12.RNO, v27)
-                                        task.delay(0.02, tbl12.RNO, v27)
-                                        task.delay(0.04, tbl12.RNO, v27)
-                                        task.delay(0.06, tbl12.RNO, v27)
-                                    elseif tbl9.NKDelayMode == "Normal" then
-                                        task.spawn(function()
-                                            task.wait(0.05)
-                                            tbl12.RNO(v27)
-                                            task.wait(0.05)
-                                            tbl12.RNO(v27)
-                                            task.wait(0.05)
-                                            tbl12.RNO(v27)
-                                        end)
-                                    end
+											task.delay(0.6, function()
+												if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
+													fn21(v27, v27)
+												end
+											end)
+										else
+											fn21(v27, nil)
+										end
+									end
+								end
+							end
 
-                                    if tbl8.DeleteShurInNK then
-                                        task.spawn(tbl12.RemoveSticky, v26)
-                                    end
-
-                                    -- 🔥 โหดขึ้น: ToggleCollisions + RepositionLimbs 2 รอบ
-                                    tbl12.ToggleCollisions(v26, false)
-                                    tbl12.RepositionLimbs(v26, true)
-                                    tbl12.ToggleCollisions(v26, false)
-                                    tbl12.RepositionLimbs(v26, true)
-
-                                    -- 🔥 โหดขึ้น: กระตุกตำแหน่งล็อค
-                                    task.delay(0, function()
-                                        if v27 and v27.Parent and kickAP and kickAP.Parent then
-                                            kickAP.Position = v29 + Vector3.new(0, 3, 0)
-                                        end
-                                    end)
-                                    
-                                    task.delay(0.05, function()
-                                        if v27 and v27.Parent and kickAP and kickAP.Parent then
-                                            kickAP.Position = v29
-                                        end
-                                    end)
-
-                                    task.delay(0, function()
-                                        if tbl8.LoopApplyMethodT and tbl7.TargetMethods.Kick and tbl7.SelectedPlayers[v25] and tbl12.IsNetworkOwner(v27) then
-                                            fn21(v27, v27)
-                                        end
-                                    end)
-                                else
-                                    fn21(v27, nil)
-                                end
-                            end
-                        end
-                    end
-
-                    if tbl9.NKDelayMode == "Normal" then
-                        task.wait()
-                    end
-                end
-            end
-        end
-    end
-end)
+							if tbl9.NKDelayMode == "Normal" then
+								task.wait()
+							end
+						end
+					end
+				end
+			end
+		end)
 
 		lib.ForceCheckbox = true
 
@@ -36172,8 +36119,8 @@ end)
 		end
 		    Greetings:AddLabel({ Text = ("%s, <b>%s</b>"):format(greeting, localPlayer.DisplayName), DoesWrap = true })
             Greetings:AddDivider()
-            Greetings:AddLabel({ Text = 'Welcome to <b><font color="#ff0000">LA</font></b>', DoesWrap = true })
-            Greetings:AddLabel({ Text = 'Creator by: <font color="#9b9bcc">Pmaiexz.dex</font>', DoesWrap = true })
+            Greetings:AddLabel({ Text = '       || Welcome to <b><font color="#ff0000">LA</font></b>', DoesWrap = true })
+            Greetings:AddLabel({ Text = '       || Creator by: <font color="#9b9bcc">Pmaiexz.dex</font>', DoesWrap = true })
 	end
 
 		do
